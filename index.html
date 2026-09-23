@@ -128,7 +128,7 @@ p{margin:0}
 .icon-btn{width:34px;height:34px;display:inline-grid;place-items:center;border:1px solid transparent;background:none;border-radius:6px;cursor:pointer;color:var(--ink-2);flex:none}
 .icon-btn:hover{background:var(--surface-2);color:var(--ink)}
 .icon-btn svg{width:18px;height:18px}
-input[type=text],input[type=search],input[type=date],input[type=month],input[type=number],input:not([type]),select,textarea{
+input[type=text],input[type=search],input[type=date],input[type=month],input[type=number],input[type=email],input[type=password],input[type=tel],input[type=time],input:not([type]),select,textarea{
   height:40px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);padding:0 10px;font-size:15px;width:100%;min-width:0}
 textarea{height:auto;padding:8px 10px;min-height:70px;resize:vertical}
 select{padding-right:28px;appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink-2) 50%),linear-gradient(135deg,var(--ink-2) 50%,transparent 50%);background-position:calc(100% - 15px) 17px,calc(100% - 10px) 17px;background-size:5px 5px;background-repeat:no-repeat}
@@ -392,6 +392,49 @@ table.heat{border-collapse:separate;border-spacing:2px;width:100%;table-layout:f
 .slip-print{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 12px;margin-bottom:14px;border-radius:8px;background:var(--surface-2)}
 .slip-print label{flex:1 1 200px}
 .slip-print select{height:38px;font-size:14px}
+/* scheduled orders */
+.nav-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--seg-deliv);color:#fff;font-size:11px;font-weight:700}
+.subnav button[aria-current="page"] .nav-badge{background:var(--surface);color:var(--ink)}
+.due-strip{border:1px solid var(--rule);border-left:4px solid var(--seg-deliv);border-radius:8px;background:var(--surface);padding:10px 12px;margin-bottom:14px}
+.due-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.due-head b{display:inline-flex;align-items:center;gap:6px}
+.due-head b svg,.cart-sched svg{width:16px;height:16px}
+.due-head .btn{margin-left:auto}
+.due-list{display:flex;flex-direction:column}
+.due-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--rule-2)}
+.due-info{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;text-align:left;border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;font-size:14px}
+.due-info .small{flex-basis:100%}
+.cart-sched{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 16px;background:color-mix(in srgb,var(--seg-deliv) 10%,var(--surface));border-bottom:1px solid var(--rule-2);font-size:13px;font-weight:600;color:var(--seg-deliv)}
+.cart-sched span{display:inline-flex;align-items:center;gap:6px}
+.cart-sheet .cart-sched{margin:0 -20px;padding:8px 20px}
+.seg.days button{min-width:44px}
+.wk-label{font-size:15px;min-width:220px;text-align:center}
+.plan-ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 12px}
+.plan-ctrl select{width:auto;height:36px;font-size:14px}
+@media (max-width:640px){.wk-label{min-width:0;font-size:14px}.sr-nav{flex-wrap:wrap}}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.wday{display:flex;flex-direction:column;gap:6px;min-width:0;padding:8px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);min-height:140px}
+.wday.is-today{border-color:var(--seg-deliv);box-shadow:inset 0 3px 0 var(--seg-deliv)}
+.wday.is-picked{background:var(--surface-2)}
+.wday-head{display:flex;flex-direction:column;align-items:flex-start;border:0;background:none;padding:0 0 4px;font:inherit;color:inherit;cursor:pointer;text-align:left;border-bottom:1px solid var(--rule-2)}
+.wday-empty{margin-top:4px}
+.occ{display:flex;flex-direction:column;gap:2px;text-align:left;padding:7px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);font:inherit;color:inherit;cursor:pointer;min-width:0}
+.occ:hover{border-color:var(--ink-3)}
+.occ-top{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:13px}
+.occ-top .st{font-size:11.5px}
+.occ-name{font-weight:650;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.occ-items{font-size:12px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.occ-done{background:var(--surface-2)}.occ-done .occ-name,.occ-done .occ-items{color:var(--ink-3)}
+.occ-skipped{opacity:.55}.occ-skipped .occ-name{text-decoration:line-through}
+.occ-missed{border-color:color-mix(in srgb,var(--bad) 45%,var(--rule))}
+@media (max-width:1000px){.week{grid-template-columns:minmax(0,1fr)}.wday{min-height:0}.wday-head{flex-direction:row;justify-content:space-between;align-items:baseline;width:100%}.wday-head .small{text-align:right}}
+/* sign-in (self-hosted) */
+body.auth-open{overflow:hidden}
+.auth-wrap{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;padding-top:calc(24px + env(safe-area-inset-top,0px));overflow:auto}
+.auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:28px 24px;display:flex;flex-direction:column;gap:14px}
+.auth-card .brand{margin-bottom:8px}
+.auth-card h1{font-size:24px}
+.auth-card form{display:flex;flex-direction:column;gap:12px}
 .r-cust{margin:0 0 8px;padding-bottom:10px;border-bottom:1px dashed var(--rule);font-size:13.5px;line-height:1.45}
 .r-lbl{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--ink-3);margin-bottom:2px}
 .r-addr{white-space:pre-line;color:var(--ink-2)}
@@ -1004,7 +1047,13 @@ function compute(view) {
     const span = c.first && c.last ? (new Date(c.last) - new Date(c.first)) / 86400000 : 0;
     c.every = c.orders > 1 && span > 0 ? span / (c.orders - 1) : null;
   }
-  return { S, entries, events, log, allMats, mats, matById, recipes, recById, suppliers, supStats, pos, poById, sales, fgById, customers, custById };
+  // weekly scheduled orders; a date counts as done when a sale was rung up for it
+  const schedDone = {};
+  for (const sa of sales) if (!sa.void && sa.scheduleId && sa.scheduleDate) schedDone[sa.scheduleId + '|' + sa.scheduleDate] = sa;
+  const schedules = Object.entries(view.schedules || {}).map(([id, d]) => ({ ...d, id, cust: custById[d.customerId] || null, days: Array.isArray(d.days) ? d.days : [], items: Array.isArray(d.items) ? d.items : [], skips: d.skips || {} }))
+    .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')) || String((a.cust && a.cust.name) || '').localeCompare(String((b.cust && b.cust.name) || '')));
+  const schedById = {}; for (const x of schedules) schedById[x.id] = x;
+  return { S, entries, events, log, allMats, mats, matById, recipes, recById, suppliers, supStats, pos, poById, sales, fgById, customers, custById, schedules, schedById, schedDone };
 }
 
 /* Monthly report, mirrors the "Monthly Inventory Report" sheet */
@@ -1103,7 +1152,7 @@ function agoText(iso) {
 /* =========================================================
    Store: server snapshot + local outbox = what the page shows
    ========================================================= */
-const server = { materials: {}, recipes: {}, suppliers: {}, settings: {}, txns: {}, pos: {}, sales: {}, customers: {} };
+const server = { materials: {}, recipes: {}, suppliers: {}, settings: {}, txns: {}, pos: {}, sales: {}, customers: {}, schedules: {} };
 let outbox = [];
 let view = null;
 let model = null;
@@ -1119,7 +1168,7 @@ const Sync = {
 function buildView() {
   const v = {
     materials: { ...server.materials }, recipes: { ...server.recipes }, suppliers: { ...server.suppliers },
-    settings: { ...server.settings }, txns: { ...server.txns }, pos: { ...server.pos }, sales: { ...server.sales }, customers: { ...server.customers }
+    settings: { ...server.settings }, txns: { ...server.txns }, pos: { ...server.pos }, sales: { ...server.sales }, customers: { ...server.customers }, schedules: { ...server.schedules }
   };
   const pk = new Set();
   for (const op of outbox) {
@@ -1216,6 +1265,7 @@ async function execOp(op) {
   if (op.op === 'txn') {
     const ref = db.doc((op.col || 'txns') + '/' + op.day);
     const body = { entries: { [op.entry.id]: op.entry } };
+    if (db.upsertMerge) { await withTimeout(db.upsertMerge((op.col || 'txns') + '/' + op.day, { day: op.dayKey || op.day, entries: body.entries }), 20000); return; }
     try { await withTimeout(ref.update(body), 20000); return; }
     catch (e) { if (!e || e.code !== 'invalid_argument') throw e; }
     // The day's record doesn't exist yet: take a short lease so two devices don't both create it.
@@ -1304,6 +1354,7 @@ function subscribe() {
     Sync.subs.push(colSub('pos', db.collection('pos').limit(1000)));
     Sync.subs.push(colSub('sales', db.collection('sales').orderBy('day', 'desc').limit(1000)));
     Sync.subs.push(colSub('customers', db.collection('customers').limit(1000)));
+    Sync.subs.push(colSub('schedules', db.collection('schedules').limit(1000)));
     Sync.subs.push(colSub('txns', db.collection('txns').orderBy('day', 'desc').limit(1000)));
     Sync.subs.push(db.doc('settings/main').onSnapshot(snap => {
       server.settings = snap.exists ? { main: snap.data() } : {};
@@ -1393,6 +1444,7 @@ const ICON = {
   file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 12v6M9 15l3 3 3-3"/></svg>',
   sell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>',
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>'
 };
 const openLayers = [];
@@ -1521,7 +1573,7 @@ const App = {
   },
   go(name, id = null) {
     route = { name, id };
-    const tab = name === 'recipe' ? 'recipes' : name === 'goods' ? 'stock' : name === 'customers' ? 'sell' : name === 'stockreport' ? 'reports' : name;
+    const tab = name === 'recipe' ? 'recipes' : name === 'goods' ? 'stock' : name === 'customers' || name === 'schedules' ? 'sell' : name === 'stockreport' ? 'reports' : name;
     if (name !== 'recipe') { try { localStorage.setItem('sc:tab', name); } catch (e) { } }
     $$('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     const el = $('#view');
@@ -1553,6 +1605,7 @@ const App = {
   },
   syncState() {
     if (!Sync.db) {
+      if (Sync.connecting && navigator.onLine === false) return { mode: 'offline', label: outbox.length ? `Offline, ${outbox.length} waiting` : 'Offline' };
       if (Sync.connecting) return { mode: 'connecting', label: 'Connecting…' };
       return outbox.length ? { mode: 'offline', label: `This device only, ${outbox.length} unsynced` } : { mode: 'local', label: 'This device only' };
     }
@@ -2285,7 +2338,7 @@ const LISTS = [
 ];
 Views.setup = {
   mount(el) {
-    el.innerHTML = `<div class="head"><div><h1>Setup</h1><p class="sub">Suppliers, lists, preferences and your data.</p></div></div><div data-live></div>`;
+    el.innerHTML = `<div class="head"><div><h1>Setup</h1><p class="sub">Suppliers, lists, preferences and your data.</p></div></div><div data-acct></div><div data-live></div>`;
     const live = $('[data-live]', el);
     live.addEventListener('click', e => {
       const rm = e.target.closest('[data-chip-rm]');
@@ -2314,6 +2367,7 @@ Views.setup = {
   },
   update() {
     const el = $('#view'); const S = model.S; const live = $('[data-live]', el);
+    const acct = $('[data-acct]', el); if (acct && !acct.contains(document.activeElement)) acct.innerHTML = typeof accountPanelHtml === 'function' ? accountPanelHtml() : '';
     const archived = model.allMats.filter(m => m.archived).sort(byName);
     const supRows = model.suppliers.map(s => ({ s, st: model.supStats[s.name.trim().toLowerCase()] || null }));
     live.innerHTML = `
@@ -2337,7 +2391,7 @@ Views.setup = {
       <div class="cols section">
         <section class="panel"><div class="panel-head"><h2>Your data</h2></div>
           <p class="muted small">Download everything as an Excel workbook (stock, movements, recipes, prices, monthly report, suppliers) or a full backup file.</p>
-          <div class="actions" style="margin-top:14px"><button class="btn" data-act="export-xlsx">${ICON.download}Export to Excel</button><button class="btn ghost" data-act="backup">Download backup</button></div>
+          <div class="actions" style="margin-top:14px"><button class="btn" data-act="export-xlsx">${ICON.download}Export to Excel</button><button class="btn ghost" data-act="backup">Download backup</button>${window.SC_SELFHOST ? '<button class="btn ghost" data-restore data-write>Restore from backup</button>' : ''}</div>
           ${archived.length ? `<h3 style="margin-top:22px">Archived materials</h3><p class="small muted" style="margin-bottom:6px">Hidden from stock lists and pickers. Their history is kept.</p>${archived.map(m => `<div class="kv"><span>${esc(m.name)} <span class="faint small">${esc(m.unit)}</span></span><span><button class="btn quiet sm" data-act="restore-mat" data-id="${esc(m.id)}" data-write>Restore</button></span></div>`).join('')}` : ''}
         </section>
         <section class="panel"><div class="panel-head"><h2>Working offline</h2></div>
@@ -3033,8 +3087,9 @@ async function exportXlsx() {
   }));
   const poRows = []; for (const p of model.pos) for (const l of p.lines) poRows.push({ 'PO no.': p.number, Supplier: p.supplier, 'Order date': p.date, 'Deliver by': p.deliverBy || '', Status: PO_STATUS[p.state][0], Item: l.m ? l.m.name : '', Unit: l.m ? l.m.unit : '', Ordered: l.qtyNum, Received: r2(l.received), Outstanding: r2(l.remaining), 'Unit price': num(l.unitCost), Amount: r2(l.qtyNum * (num(l.unitCost) || 0)) });
   add('Purchase orders', poRows);
-  const saleRows = []; for (const sa of model.sales) (sa.items || []).forEach(it => saleRows.push({ Date: sa.date, Time: fmtTime(sa.at), Order: sa.receipt || '', Channel: sa.channelName || '', Customer: (sa.customer && sa.customer.name) || '', 'Contact number': (sa.customer && sa.customer.phone) || '', Address: (sa.customer && sa.customer.address) || '', Item: it.name, Size: it.size || '', Qty: num(it.qty), Price: num(it.price), Amount: r2(num(it.qty) * num(it.price)), 'Unit cost': r2(num(it.unitCost)), 'Order total': num(sa.total), Discount: num(sa.discount && sa.discount.amount) || 0, VAT: num(sa.vat), Payment: sa.payment || '', Note: sa.note || '', Voided: sa.void ? 'Yes' : '' }));
+  const saleRows = []; for (const sa of model.sales) (sa.items || []).forEach(it => saleRows.push({ Date: sa.date, Time: fmtTime(sa.at), Order: sa.receipt || '', Channel: sa.channelName || '', Customer: (sa.customer && sa.customer.name) || '', Scheduled: sa.scheduleId ? 'Yes' : '', 'Contact number': (sa.customer && sa.customer.phone) || '', Address: (sa.customer && sa.customer.address) || '', Item: it.name, Size: it.size || '', Qty: num(it.qty), Price: num(it.price), Amount: r2(num(it.qty) * num(it.price)), 'Unit cost': r2(num(it.unitCost)), 'Order total': num(sa.total), Discount: num(sa.discount && sa.discount.amount) || 0, VAT: num(sa.vat), Payment: sa.payment || '', Note: sa.note || '', Voided: sa.void ? 'Yes' : '' }));
   add('Sales', saleRows);
+  add('Scheduled orders', model.schedules.map(x => ({ Customer: custName(x), 'Contact number': (x.cust && x.cust.phone) || '', Days: daysText(x.days), Time: fmtClock(x.time), Items: itemsText(x), 'Per order (today\'s prices)': schedPriced(x).total, Channel: schedPriced(x).cat.ch.name, Payment: x.payment || '', Starts: x.startDate || '', Ends: x.endDate || '', Status: x.active === false ? 'Paused' : 'Active', Address: x.address || (x.cust && x.cust.address) || '', Note: x.note || '' })));
   add('Customers', model.customers.map(c => ({ Name: c.name || '', 'Contact number': c.phone || '', Address: c.address || '', Notes: c.notes || '', Orders: c.orders, 'Total spent': r2(c.spent), 'Last order': c.last || '' })));
   add('Finished goods', model.recipes.filter(r => r.fg && r.fg.stocked).map(r => ({ Dish: r.name, Category: r.category, 'On hand (servings)': r2(r.fg.onHand), 'Cooked total': r2(r.fg.in), Sold: r2(r.fg.sold), Wasted: r2(r.fg.waste), 'Count adjustments': r2(r.fg.adj), 'Cost / serving': r2(r.fg.avgCost), Value: r2(r.fg.value), 'Last cooked': r.fg.lastDate || '' })));
   add('Recipes', model.recipes.map(r => ({ Code: r.code, Recipe: r.name, Category: r.category, 'Standard yield': num(r.standardYield), 'Finished batch': num(r.finishedBatch), 'Measure unit': r.measureUnit, 'Target portion': num(r.targetPortion), 'Actual servings': num(r.actualServings), 'Costing yield': r2(r.rc.yieldUsed), 'Yield status': YIELD[r.rc.yieldStatus][0], 'Batch cost': r2(r.rc.batchCost), 'Cost / serving': r2(r.rc.costPerServing), 'Packaging / serving': num(r.packaging) || 0, 'Costing status': COSTING[r.rc.costing][0], 'Actual food cost %': r2(r.cc.actualFC), 'Target food cost %': r2(r.cc.targetFC), 'Food cost status': CONTROL[r.cc.status][0] })));
@@ -3050,7 +3105,7 @@ async function exportXlsx() {
   await saveFile(`stock-costing-${today()}.xlsx`, new Blob([buf]));
 }
 async function exportBackup() {
-  const data = { app: 'stock-costing', version: 1, exportedAt: new Date().toISOString(), materials: view.materials, recipes: view.recipes, suppliers: view.suppliers, settings: view.settings, txns: view.txns };
+  const data = { app: 'stock-costing', version: 2, exportedAt: new Date().toISOString(), materials: view.materials, recipes: view.recipes, suppliers: view.suppliers, settings: view.settings, txns: view.txns, pos: view.pos, sales: view.sales, customers: view.customers, schedules: view.schedules };
   await saveFile(`stock-costing-backup-${today()}.json`, JSON.stringify(data, null, 2));
 }
 
@@ -3688,7 +3743,7 @@ async function pdfBlankLog(kind) {
 const Cart = { lines: [], channel: null, discount: { type: 'none', value: '' }, payment: 'Cash', received: '', note: '', customer: null };
 (function loadCart() { try { const c = JSON.parse(localStorage.getItem('sc:cart') || 'null'); if (c && Array.isArray(c.lines)) Object.assign(Cart, c, { discount: { type: 'none', value: '', ...(c.discount || {}) } }); } catch (e) { } })();
 function saveCart() { try { localStorage.setItem('sc:cart', JSON.stringify(Cart)); } catch (e) { } }
-function clearCart() { Cart.lines = []; Cart.discount = { type: 'none', value: '' }; Cart.received = ''; Cart.note = ''; Cart.payment = 'Cash'; Cart.customer = null; saveCart(); }
+function clearCart() { Cart.lines = []; Cart.discount = { type: 'none', value: '' }; Cart.received = ''; Cart.note = ''; Cart.payment = 'Cash'; Cart.customer = null; Cart.schedule = null; saveCart(); }
 const isDeliveryChannel = ch => (num(ch.delivery) || 0) > 0 || (num(ch.fixedDelivery) || 0) > 0 || /deliver/i.test(ch.name || '');
 const hasCustomer = c => !!(c && (c.name || c.phone || c.address));
 const digits = s => String(s || '').replace(/\D/g, '');
@@ -3701,10 +3756,10 @@ function resaleSuggested(m, ch) {
   const p = priceFor(rc, { packaging: 0, otherFixed: 0 }, ch, model.S);
   return p.ok ? p.rounded : null;
 }
-function posCatalog() {
+function posCatalog(chId) {
   const S = model.S;
-  let ci = S.channels.findIndex(c => c.id === Cart.channel);
-  if (ci < 0) { ci = 0; Cart.channel = S.channels[0].id; }
+  let ci = S.channels.findIndex(c => c.id === (chId || Cart.channel));
+  if (ci < 0) { ci = 0; if (!chId) Cart.channel = S.channels[0].id; }
   const ch = S.channels[ci];
   const items = [];
   for (const r of model.recipes) {
@@ -3763,6 +3818,7 @@ Views.sell = {
         <div class="actions"><button class="btn ghost" data-act="sales-today">Today's sales</button><button class="btn ghost" data-act="fg-count" data-write>${ICON.count}Count leftovers</button></div></div>
       <div class="pos">
         <div class="pos-main">
+          <div data-due></div>
           <div class="toolbar"><div class="search"><input type="search" data-f="q" placeholder="Search the menu" aria-label="Search the menu" value="${esc(ui.sell.q)}"></div></div>
           <div class="toolbar"><div class="seg" data-pos-cats role="group" aria-label="Menu category"></div></div>
           <div data-pos-grid></div>
@@ -3778,6 +3834,7 @@ Views.sell = {
       addToCart(b.dataset.add);
     });
     $('[data-pos-bar]', el).addEventListener('click', e => { if (e.target.closest('[data-open-cart]')) openCartSheet(); });
+    $('[data-due]', el).addEventListener('click', e => { const r = e.target.closest('[data-ring]'); if (r) { const [sid, d] = r.dataset.ring.split('|'); ringUpSchedule(sid, d); return; } const o = e.target.closest('[data-occ]'); if (o) { const [sid, d] = o.dataset.occ.split('|'); openOccurrence(sid, d); } });
     wireCart($('[data-cart]', el));
   },
   update() {
@@ -3785,6 +3842,7 @@ Views.sell = {
     const cat = posCatalog();
     const td = today(); const ss = salesSummary(model, td, td);
     $('[data-today]', el).textContent = `Today: ${ss.orders} order${ss.orders === 1 ? '' : 's'}, ${money(ss.net)} in sales.`;
+    $('[data-due]', el).innerHTML = dueTodayHtml();
     const order = [...model.S.recipeCategories, ...model.S.materialCategories];
     const cats = [...new Set(cat.items.map(i => i.category))].sort(catSorter(order));
     if (ui.sell.cat && !cats.includes(ui.sell.cat)) ui.sell.cat = '';
@@ -3877,6 +3935,7 @@ function wireCart(root) {
     if (t.closest('[data-clear]')) { clearCart(); refreshPos(); return; }
     if (t.closest('[data-charge]')) { charge(); return; }
     const hist = t.closest('[data-cust-hist]'); if (hist) { openCustomer(hist.dataset.custHist); return; }
+    if (t.closest('[data-unsched]')) { Cart.schedule = null; saveCart(); refreshPos(); return; }
     if (t.closest('[data-cust]')) openCustomerPicker();
   });
   root.addEventListener('change', e => {
@@ -3932,7 +3991,8 @@ async function charge() {
     id: uid('s'), type: 'sale', receipt: nextReceipt(date), date, at, channel: cat.ch.id, channelName: cat.ch.name, items,
     subtotal: +t.subtotal.toFixed(2), discount: { type: Cart.discount.type, value: num(Cart.discount.value), amount: t.disc }, total: t.total, vat: +t.vat.toFixed(2), vatExempt: t.vatExempt,
     payment: Cart.payment, received: Cart.payment === 'Cash' ? t.received : null, change: Cart.payment === 'Cash' && t.change != null ? +t.change.toFixed(2) : null,
-    note: Cart.note.trim(), customer, by: ME.id || null
+    note: Cart.note.trim(), customer, by: ME.id || null,
+    ...(Cart.schedule && Cart.schedule.id ? { scheduleId: Cart.schedule.id, scheduleDate: Cart.schedule.date } : {})
   };
   const keepChannel = Cart.channel;
   clearCart(); Cart.channel = keepChannel; saveCart();
@@ -4212,6 +4272,11 @@ function openFgCount() {
    Customers
    ========================================================= */
 function customerRow(cat) {
+  const sch = Cart.schedule && model.schedById[Cart.schedule.id];
+  const tag = sch ? `<div class="cart-sched"><span>${ICON.cal}Scheduled order for ${esc(fmtDate(Cart.schedule.date, false))}${sch.time ? ', ' + esc(fmtClock(sch.time)) : ''}</span><button type="button" class="btn quiet sm" data-unsched>Unlink</button></div>` : '';
+  return tag + customerRowInner(cat);
+}
+function customerRowInner(cat) {
   const c = Cart.customer, del = isDeliveryChannel(cat.ch);
   if (hasCustomer(c)) {
     const saved = c.id && model.custById[c.id];
@@ -4318,7 +4383,8 @@ function editCustomer(id) {
    ========================================================= */
 ui.customers = { q: '', sort: 'recent' };
 function sellNav(active) {
-  return `<nav class="subnav" aria-label="Sell"><button type="button" data-act="go" data-to="sell" aria-current="${active === 'sell' ? 'page' : 'false'}">Sell</button><button type="button" data-act="go" data-to="customers" aria-current="${active === 'customers' ? 'page' : 'false'}">Customers</button></nav>`;
+  const due = model ? occurrencesOn(today()).filter(o => o.status === 'due').length : 0;
+  return `<nav class="subnav" aria-label="Sell"><button type="button" data-act="go" data-to="sell" aria-current="${active === 'sell' ? 'page' : 'false'}">Sell</button><button type="button" data-act="go" data-to="customers" aria-current="${active === 'customers' ? 'page' : 'false'}">Customers</button><button type="button" data-act="go" data-to="schedules" aria-current="${active === 'schedules' ? 'page' : 'false'}">Scheduled${due ? ` <span class="nav-badge">${due}</span>` : ''}</button></nav>`;
 }
 const favText = c => c.favorites && c.favorites[0] ? c.favorites[0].name + (c.favorites[0].size ? ' ' + c.favorites[0].size : '') : '';
 const daysSince = d => d ? Math.floor((new Date(today()) - new Date(d)) / 86400000) : null;
@@ -4369,6 +4435,8 @@ function openCustomer(id) {
     const rep = t.closest('[data-repeat]'); if (rep) { repeatOrder(rep.dataset.repeat, id, s); return; }
     if (t.closest('[data-cust-new]')) { startOrderFor(id, s); return; }
     if (t.closest('[data-cust-edit]')) { editCustomer(id); return; }
+    if (t.closest('[data-cust-sched]')) { editSchedule(null, { customerId: id }); return; }
+    const es = t.closest('[data-edit-sched]'); if (es) { editSchedule(es.dataset.editSched); return; }
     if (t.closest('[data-cust-pdf]')) { withPdf(() => pdfCustomerHistory(id, period)); return; }
     const row = t.closest('[data-rcpt]'); if (row) openReceipt(row.dataset.rcpt);
   });
@@ -4387,12 +4455,14 @@ function openCustomer(id) {
         <button class="btn" data-cust-new data-write>${ICON.sell}New order</button>
         ${lastSale ? `<button class="btn ghost" data-repeat="${esc(lastSale.id)}" data-write>${ICON.copy}Repeat last order</button>` : ''}
         <button class="btn ghost" data-cust-edit data-write>${ICON.edit}Edit</button>
+        <button class="btn ghost" data-cust-sched data-write>${ICON.cal}New schedule</button>
         ${c.sales.length ? `<button class="btn ghost" data-cust-pdf>${ICON.file}History PDF</button>` : ''}
       </div>
       ${c.orders ? `<dl class="facts" style="grid-template-columns:repeat(3,minmax(0,1fr))">
         <div><dt>Orders</dt><dd><b>${c.orders}</b></dd></div><div><dt>Total spent</dt><dd><b>${money(c.spent)}</b></dd></div><div><dt>Average order</dt><dd>${money(c.avg)}</dd></div>
         <div><dt>Customer since</dt><dd>${esc(fmtDate(c.first))}</dd></div><div><dt>Last order</dt><dd>${esc(fmtDate(c.last))} <small>${ds === 0 ? 'today' : ds === 1 ? 'yesterday' : ds + ' days ago'}</small></dd></div><div><dt>Orders about every</dt><dd>${c.every ? `${qty(c.every, 0)} day${Math.round(c.every) === 1 ? '' : 's'}` : DASH}</dd></div>
         <div><dt>Usually pays with</dt><dd>${esc(c.usualPay || '—')}</dd></div><div><dt>Usual channel</dt><dd>${esc(c.usualChannel || '—')}</dd></div></dl>` : '<p class="muted">No orders yet. Tap New order to ring one up with this customer attached.</p>'}
+      ${customerSchedulesHtml(c)}
       ${c.favorites.length ? `<div><h3 style="margin-bottom:6px">Favourite items</h3>${c.favorites.slice(0, 6).map(x => `<div class="kv"><span>${esc(x.name)}${x.size ? ` <span class="muted">${esc(x.size)}</span>` : ''} <span class="faint small">in ${x.orders} order${x.orders > 1 ? 's' : ''}</span></span><span>${qty(x.qty)} bought, ${money(x.spent)}</span></div>`).join('')}</div>` : ''}
       ${c.sales.length ? `<div><div class="panel-head" style="margin-bottom:8px"><h3>Order history</h3><div class="seg" role="group" aria-label="Period">${PERIODS.map(([k, l]) => `<button type="button" data-per="${k}" aria-pressed="${k === period}">${l}</button>`).join('')}</div></div>
         <p class="small muted" style="margin-bottom:8px">${live.length} order${live.length === 1 ? '' : 's'}, ${money(pSpent)}${list.length > live.length ? `, plus ${list.length - live.length} voided` : ''}.</p>
@@ -4565,6 +4635,7 @@ function srAnalyze(start, end, buckets) {
     if (buckets) { const b = tally(A.byBucket, buckets.keyOf(s), n); b.gp = (b.gp || 0) + (n - v - cost); }
     A.days.add(s.date);
   }
+  A.sched = live.filter(s => s.scheduleId).reduce((a, s) => { a.orders++; a.net += num(s.total) || 0; return a; }, { orders: 0, net: 0 });
   A.exVat = A.net - A.vat; A.gp = A.exVat - A.cost; A.margin = A.exVat > 0 ? A.gp / A.exVat : null;
   A.aov = A.orders ? A.net / A.orders : null; A.upo = A.orders ? A.units / A.orders : null;
   A.perDay = A.days.size ? A.net / A.days.size : null;
@@ -4757,7 +4828,7 @@ Views.reports = {
           ${kpi('Returning', A.cust.returning, B && B.cust.returning, v => qty(v || 0, 0), { hasCmp: hc })}
           ${kpi('Walk-in orders', A.cust.walkin, B && B.cust.walkin, v => qty(v || 0, 0), { hasCmp: hc })}
         </dl>
-        <p class="small faint" style="margin:10px 0 14px">${A.cust.served ? `${A.cust.repeat} of ${A.cust.served} customer${A.cust.served > 1 ? 's' : ''} ordered more than once this ${P.unit}. ` : ''}Walk-in orders are sales without customer details.</p>
+        <p class="small faint" style="margin:10px 0 14px">${A.cust.served ? `${A.cust.repeat} of ${A.cust.served} customer${A.cust.served > 1 ? 's' : ''} ordered more than once this ${P.unit}. ` : ''}Walk-in orders are sales without customer details.${A.sched.orders ? ` Scheduled orders: ${A.sched.orders} (${money(A.sched.net)}, ${pct(A.net ? A.sched.net / A.net : 0, 0)} of sales).` : ''}</p>
         ${A.cust.rows.length ? `<h3 style="margin-bottom:8px">Top customers</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th class="sticky">Customer</th><th class="num">Orders</th><th class="num">Spent</th><th class="num">Average order</th><th>Last order</th><th>Usually buys</th></tr></thead><tbody>
           ${A.cust.rows.slice(0, 10).map(r => `<tr data-open-cust="${esc(r.c.id)}" style="cursor:pointer"><td class="sticky"><span class="name">${esc(r.c.name || r.c.phone || 'Customer')}</span>${r.isNew ? ' <span class="st info">New</span>' : ''}${r.c.phone && r.c.name ? `<div class="small faint">${esc(r.c.phone)}</div>` : ''}</td><td class="num">${r.orders}</td><td class="num"><b>${money(r.net)}</b></td><td class="num">${money(r.avg)}</td><td class="nowrap">${esc(fmtDate(r.last))}</td><td class="small">${esc(favText(r.c)) || DASH}</td></tr>`).join('')}
         </tbody></table></div>` : ''}
@@ -4863,6 +4934,309 @@ async function pdfSalesReport() {
   }
   if (A.voids.count) pdfParagraph(ctx, `${A.voids.count} voided order${A.voids.count > 1 ? 's' : ''} totalling ${money(A.voids.amount)} are not included above.`);
   await pdfFinish(ctx, `sales-report-${slug(P.label)}.pdf`);
+}
+
+/* =========================================================
+   Weekly scheduled orders
+   ========================================================= */
+ui.sched = { week: null, day: null };
+const dowOf = d => { const [y, m, dd] = d.split('-').map(Number); return (new Date(y, m - 1, dd).getDay() + 6) % 7; };
+const weekStartOf = d => addDays(d, -dowOf(d));
+function fmtClock(hhmm) {
+  if (!hhmm) return ''; const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h)) return hhmm;
+  return `${h % 12 || 12}:${pad(m || 0)} ${h < 12 ? 'AM' : 'PM'}`;
+}
+const SCHED_STATUS = { due: ['Due', 'info'], done: ['Done', 'ok'], skipped: ['Skipped', 'mute'], missed: ['Missed', 'bad'] };
+function schedRunsOn(x, date) {
+  if (!x.days.includes(dowOf(date))) return false;
+  if (x.startDate && date < x.startDate) return false;
+  if (x.endDate && date > x.endDate) return false;
+  if (x.active === false && !(x.pausedAt && date < x.pausedAt)) return false;
+  return true;
+}
+function occurrencesOn(date) {
+  const t = today(); const out = [];
+  for (const x of model.schedules) {
+    if (!schedRunsOn(x, date)) continue;
+    const sale = model.schedDone[x.id + '|' + date] || null;
+    const skip = x.skips[date];
+    const status = sale ? 'done' : skip ? 'skipped' : date < t ? 'missed' : 'due';
+    out.push({ x, date, sale, skip, status });
+  }
+  return out.sort((a, b) => String(a.x.time || '99').localeCompare(String(b.x.time || '99')));
+}
+/* Prices each scheduled item at today's price for the schedule's channel */
+function schedPriced(x) {
+  const cat = posCatalog(x.channel);
+  const lines = x.items.map(l => ({ ...l, item: cat.byKey[l.key] || null }));
+  const priced = lines.filter(l => l.item && l.item.price != null);
+  const total = priced.reduce((a, l) => a + (num(l.qty) || 0) * l.item.price, 0);
+  return { cat, lines, total, missing: lines.filter(l => !l.item || l.item.price == null) };
+}
+const itemLabel = l => (l.item ? l.item.name + (l.item.size ? ' ' + l.item.size : '') : l.name || 'Item no longer on the menu');
+const itemsText = x => x.items.map(l => `${qty(num(l.qty))} ${itemLabel({ ...l, item: posCatalog(x.channel).byKey[l.key] })}`).join(', ');
+const daysText = days => (days.length === 7 ? 'Every day' : days.length === 5 && [0, 1, 2, 3, 4].every(d => days.includes(d)) ? 'Weekdays' : days.slice().sort().map(d => DOW[d]).join(', '));
+const custName = x => (x.cust ? x.cust.name || x.cust.phone : x.customerName || 'Deleted customer');
+
+function dueTodayHtml() {
+  if (Sync.readOnly) return '';
+  const occ = occurrencesOn(today()).filter(o => o.status === 'due');
+  if (!occ.length) return '';
+  return `<section class="due-strip" aria-label="Scheduled orders due today"><div class="due-head"><b>${ICON.cal}Scheduled today</b><span class="muted small">${occ.length} order${occ.length > 1 ? 's' : ''} to ring up</span><button type="button" class="btn quiet sm" data-act="go" data-to="schedules">Weekly view</button></div>
+    <div class="due-list">${occ.map(o => { const p = schedPriced(o.x); return `<div class="due-item"><button type="button" class="due-info" data-occ="${esc(o.x.id)}|${esc(o.date)}"><b>${esc(fmtClock(o.x.time) || 'Any time')}</b> ${esc(custName(o.x))}<span class="small muted">${esc(itemsText(o.x))}, about ${money(p.total)}</span></button><button type="button" class="btn sm" data-ring="${esc(o.x.id)}|${esc(o.date)}">Ring up</button></div>`; }).join('')}</div></section>`;
+}
+async function ringUpSchedule(sid, date) {
+  const x = model.schedById[sid]; if (!x) return;
+  if (Cart.lines.length && !(Cart.schedule && Cart.schedule.id === sid && Cart.schedule.date === date)) {
+    const ok = await confirmSheet({ title: 'Replace the current order?', message: `The order on the Sell screen already has items. Loading ${custName(x)}'s scheduled order replaces them.`, confirm: 'Replace order' });
+    if (!ok) return;
+  }
+  const p = schedPriced(x);
+  Cart.channel = p.cat.ch.id;
+  Cart.lines = p.lines.filter(l => l.item && l.item.price != null && num(l.qty) > 0).map(l => ({ key: l.key, qty: num(l.qty) }));
+  Cart.discount = { type: 'none', value: '' }; Cart.received = ''; Cart.note = x.note || '';
+  Cart.payment = PAYMENTS.includes(x.payment) ? x.payment : 'Cash';
+  Cart.customer = x.cust ? { id: x.cust.id, name: x.cust.name || '', phone: x.cust.phone || '', address: x.address || x.cust.address || '', save: !x.address } : null;
+  Cart.schedule = { id: sid, date };
+  saveCart();
+  for (const l of openLayers.slice()) l.close();
+  App.go('sell');
+  toast(p.missing.length ? `Loaded. Not on the menu anymore: ${p.missing.map(itemLabel).join(', ')}.` : `${custName(x)}'s scheduled order is in the cart. Check it, then charge.`, p.missing.length ? 'bad' : '');
+}
+async function setSkip(sid, date, skip) {
+  const raw = view.schedules[sid]; if (!raw) return;
+  let reason = '';
+  if (skip) { reason = await confirmSheet({ title: 'Skip this date?', message: `${custName(model.schedById[sid])} won't have a scheduled order on ${fmtDate(date)}. The rest of the schedule stays the same.`, confirm: 'Skip date', input: 'Reason (optional)' }); if (reason === null) return; }
+  await saveDoc('schedules', sid, { ...clone(raw), skips: { ...(raw.skips || {}), [date]: skip ? { reason: reason || '', by: ME.id || null, at: new Date().toISOString() } : null } }, raw);
+  toast(skip ? `Skipped ${fmtDate(date, false)}` : `${fmtDate(date, false)} is back on the schedule`);
+}
+function openOccurrence(sid, date) {
+  const s = sheet({ title: 'Scheduled order', size: 'mid', body: '', onMount(api) { api.update = () => render(api); render(api); } });
+  s.el.addEventListener('click', e => {
+    const t = e.target;
+    if (t.closest('[data-o-ring]')) { ringUpSchedule(sid, date); return; }
+    if (t.closest('[data-o-skip]')) { setSkip(sid, date, true); return; }
+    if (t.closest('[data-o-unskip]')) { setSkip(sid, date, false); return; }
+    if (t.closest('[data-o-edit]')) { editSchedule(sid); return; }
+    if (t.closest('[data-o-cust]')) { const x = model.schedById[sid]; if (x && x.cust) openCustomer(x.cust.id); return; }
+    const r = t.closest('[data-o-sale]'); if (r) openReceipt(r.dataset.oSale);
+  });
+  function render(api) {
+    const x = model.schedById[sid]; if (!x) { api.close(); return; }
+    const o = occurrencesOn(date).find(q => q.x.id === sid) || { status: model.schedDone[sid + '|' + date] ? 'done' : 'due', sale: model.schedDone[sid + '|' + date] };
+    const p = schedPriced(x);
+    $('[data-title]', api.el).textContent = `${custName(x)}, ${fmtDate(date, false)}`;
+    const addr = x.address || (x.cust && x.cust.address) || '';
+    $('[data-body]', api.el).innerHTML = `
+      <p style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">${stPill(SCHED_STATUS, o.status)}<span>${esc(new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' }))}${x.time ? ', ' + esc(fmtClock(x.time)) : ''}</span><span class="muted">${esc(p.cat.ch.name)}</span><span class="muted">${esc(x.payment || '')}</span></p>
+      ${o.status === 'skipped' && o.skip && o.skip.reason ? `<div class="note">Skipped: ${esc(o.skip.reason)}</div>` : ''}
+      <dl class="facts"><div><dt>Customer</dt><dd>${esc(custName(x))}${x.cust && x.cust.phone ? `<br><small>${esc(x.cust.phone)}</small>` : ''}</dd></div><div><dt>${isDeliveryChannel(p.cat.ch) ? 'Deliver to' : 'Address'}</dt><dd style="white-space:pre-line">${esc(addr) || '<span class="faint">Not set</span>'}</dd></div></dl>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th class="sticky">Item</th><th class="num">Qty</th><th class="num">Price today</th><th class="num">Amount</th></tr></thead><tbody>
+        ${p.lines.map(l => `<tr><td class="sticky">${esc(itemLabel(l))}${!l.item || l.item.price == null ? ' <span class="st warn">Unavailable</span>' : ''}</td><td class="num">${qty(num(l.qty))}</td><td class="num">${l.item && l.item.price != null ? money(l.item.price) : DASH}</td><td class="num">${l.item && l.item.price != null ? money(num(l.qty) * l.item.price) : DASH}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td class="sticky">Estimated total</td><td></td><td></td><td class="num">${money(p.total)}</td></tr></tfoot></table></div>
+      ${x.note ? `<p class="small muted">Note: ${esc(x.note)}</p>` : ''}
+      ${o.sale ? `<div class="note">Rung up as order <b>${esc(o.sale.receipt || '')}</b> for ${money(num(o.sale.total))}. <button type="button" class="btn quiet sm" data-o-sale="${esc(o.sale.id)}">View order</button></div>` : ''}
+      <div class="actions" data-write>
+        ${o.status === 'due' || o.status === 'missed' ? `<button class="btn" data-o-ring>${ICON.sell}Ring up</button><button class="btn ghost" data-o-skip>Skip this date</button>` : ''}
+        ${o.status === 'skipped' ? `<button class="btn ghost" data-o-unskip>Undo skip</button>` : ''}
+        <button class="btn ghost" data-o-edit>${ICON.edit}Edit schedule</button>
+        ${x.cust ? `<button class="btn quiet" data-o-cust>${ICON.user}Customer</button>` : ''}
+      </div>`;
+  }
+}
+
+function editSchedule(id, { customerId } = {}) {
+  const S = model.S;
+  const raw = id ? view.schedules[id] : null;
+  if (!model.customers.length && !raw) { toast('Add the customer first, under Sell \u2192 Customers.'); return; }
+  const d = raw ? clone(raw) : { customerId: customerId || '', days: [], time: '11:00', channel: S.channels[0].id, payment: 'Cash', startDate: today(), endDate: '', items: [], address: '', note: '', active: true, skips: {} };
+  const custOpts = model.customers.slice().sort(byName).map(c => `<option value="${esc(c.id)}"${c.id === d.customerId ? ' selected' : ''}>${esc(c.name || c.phone)}${c.phone && c.name ? ' (' + esc(c.phone) + ')' : ''}</option>`).join('');
+  const s = sheet({
+    title: id ? 'Edit scheduled order' : 'New scheduled order', size: 'wide',
+    body: `<div class="note bad" data-err hidden></div>
+      <div class="grid g2"><label class="f">Customer<select name="cust"><option value="">Choose customer…</option>${custOpts}</select><span class="hint">New customers are added under Sell \u2192 Customers.</span></label>
+        <div class="f fake"><span>Repeats every</span><div class="seg days" data-days role="group" aria-label="Days of the week">${DOW.map((dn, i) => `<button type="button" data-day="${i}" aria-pressed="${d.days.includes(i)}">${esc(dn)}</button>`).join('')}</div></div></div>
+      <div class="grid g4">
+        <label class="f">Time<input type="time" name="time" value="${esc(d.time || '')}"></label>
+        <label class="f">Channel<select name="channel">${S.channels.map(c => `<option value="${esc(c.id)}"${c.id === d.channel ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+        <label class="f">Usually pays with<select name="payment">${PAYMENTS.map(pm => `<option${pm === d.payment ? ' selected' : ''}>${esc(pm)}</option>`).join('')}</select></label>
+        <label class="f">Status<select name="active"><option value="1"${d.active !== false ? ' selected' : ''}>Active</option><option value="0"${d.active === false ? ' selected' : ''}>Paused</option></select></label>
+      </div>
+      <div class="grid g4"><label class="f">Starts<input type="date" name="start" value="${esc(d.startDate || today())}"></label><label class="f">Ends<input type="date" name="end" value="${esc(d.endDate || '')}"><span class="hint">Optional</span></label></div>
+      <h3>Items each time</h3>
+      <div class="lines" data-lines></div>
+      <button type="button" class="btn ghost sm" data-add>${ICON.plus}Add item</button>
+      <label class="f">Delivery address for this schedule<textarea name="address" rows="2" placeholder="Leave blank to use the customer's saved address">${esc(d.address || '')}</textarea></label>
+      <label class="f">Note<input type="text" name="note" value="${esc(d.note || '')}" placeholder="e.g. Office lunch, call the guard on arrival"></label>`,
+    foot: `${id ? '<button class="btn danger" data-del>Delete</button>' : ''}<div class="grow" data-est></div><button class="btn ghost" data-close>Cancel</button><button class="btn" data-save>${id ? 'Save schedule' : 'Add schedule'}</button>`
+  });
+  const f = n => s.el.querySelector(`[name="${n}"]`);
+  const box = s.el.querySelector('[data-lines]');
+  let days = new Set(d.days);
+  function prodOptions(sel) {
+    const cat = posCatalog(f('channel').value);
+    const groups = {}; for (const i of cat.items) (groups[i.category] ||= []).push(i);
+    const order = [...S.recipeCategories, ...S.materialCategories];
+    let html = '<option value="">Choose item…</option>';
+    if (sel && !cat.byKey[sel]) html += `<option value="${esc(sel)}" selected>Item no longer on the menu</option>`;
+    for (const g of Object.keys(groups).sort(catSorter(order))) html += `<optgroup label="${esc(g)}">${groups[g].map(i => `<option value="${esc(i.key)}"${i.key === sel ? ' selected' : ''}>${esc(i.name + (i.size ? ' ' + i.size : ''))}${i.price != null ? ' (' + esc(money(i.price, i.price % 1 ? 2 : 0)) + ')' : ' (no price yet)'}</option>`).join('')}</optgroup>`;
+    return html;
+  }
+  function addLine(l = {}) {
+    const div = document.createElement('div');
+    div.className = 'line iss'; div.dataset.line = '';
+    div.innerHTML = `<label class="f f-mat"><span class="lbl">Item</span><select data-k="key">${prodOptions(l.key || '')}</select></label>
+      <label class="f f-qty"><span class="lbl">Quantity</span><input inputmode="decimal" data-k="qty" value="${esc(num(l.qty) != null ? num(l.qty) : 1)}"></label>
+      <div class="hint" data-amt></div>
+      <button type="button" class="icon-btn" data-remove aria-label="Remove item">${ICON.trash}</button>`;
+    box.appendChild(div); return div;
+  }
+  function est() {
+    const cat = posCatalog(f('channel').value); let total = 0;
+    $$('[data-line]', box).forEach(l => { const it = cat.byKey[l.querySelector('[data-k="key"]').value]; const q = num(l.querySelector('[data-k="qty"]').value) || 0; const a = it && it.price != null ? q * it.price : null; if (a != null) total += a; l.querySelector('[data-amt]').textContent = a != null ? money(a) : it ? 'No price yet' : ''; });
+    const perWeek = total * days.size;
+    s.el.querySelector('[data-est]').innerHTML = total ? `About <b>${money(total)}</b> per order${days.size ? `, <b>${money(perWeek)}</b> a week` : ''} at today's prices` : '';
+  }
+  (d.items.length ? d.items : [{}]).forEach(addLine); est();
+  s.el.querySelector('[data-days]').addEventListener('click', e => { const b = e.target.closest('[data-day]'); if (!b) return; const n = +b.dataset.day; if (days.has(n)) days.delete(n); else days.add(n); b.setAttribute('aria-pressed', String(days.has(n))); est(); });
+  f('channel').addEventListener('change', () => { $$('[data-line]', box).forEach(l => { const sel = l.querySelector('[data-k="key"]'); sel.innerHTML = prodOptions(sel.value); }); est(); });
+  s.el.querySelector('[data-add]').addEventListener('click', () => { addLine().querySelector('select').focus(); est(); });
+  box.addEventListener('change', est); box.addEventListener('input', est);
+  box.addEventListener('click', e => { const b = e.target.closest('[data-remove]'); if (b) { b.closest('[data-line]').remove(); if (!box.children.length) addLine(); est(); } });
+  s.el.querySelector('[data-save]').addEventListener('click', async () => {
+    const err = s.el.querySelector('[data-err]'); const errs = [];
+    if (lineErr(f('cust'), !f('cust').value)) errs.push('Choose the customer');
+    if (!days.size) errs.push('Pick at least one day of the week');
+    if (lineErr(f('start'), !f('start').value)) errs.push('Choose a start date');
+    if (lineErr(f('end'), f('end').value && f('end').value < f('start').value)) errs.push('The end date is before the start date');
+    const items = [];
+    for (const l of $$('[data-line]', box)) {
+      const sel = l.querySelector('[data-k="key"]'), qi = l.querySelector('[data-k="qty"]');
+      if (!sel.value && !qi.value.trim()) continue;
+      const q = num(qi.value);
+      const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0));
+      if (b1 || b2) { errs.push('Each item needs a menu item and a quantity above zero'); continue; }
+      const it = posCatalog(f('channel').value).byKey[sel.value];
+      const ex = items.find(x => x.key === sel.value); if (ex) ex.qty += q; else items.push({ key: sel.value, qty: q, name: it ? it.name + (it.size ? ' ' + it.size : '') : '' });
+    }
+    if (!items.length && !errs.length) errs.push('Add at least one item');
+    if (errs.length) { err.hidden = false; err.textContent = [...new Set(errs)].join('. ') + '.'; err.scrollIntoView({ block: 'nearest' }); return; }
+    const active = f('active').value === '1';
+    const c = model.custById[f('cust').value];
+    const full = { ...d, customerId: f('cust').value, customerName: c ? c.name || c.phone : '', days: [...days].sort(), time: f('time').value || '', channel: f('channel').value, payment: f('payment').value, startDate: f('start').value, endDate: f('end').value || '', items, address: f('address').value.trim(), note: f('note').value.trim(), active, pausedAt: active ? null : (d.active === false && d.pausedAt ? d.pausedAt : today()), createdBy: d.createdBy || ME.id || null };
+    await saveDoc('schedules', id || 'sch-' + uid(), full, raw);
+    toast(id ? 'Schedule saved' : `Scheduled: ${daysText(full.days)}${full.time ? ' at ' + fmtClock(full.time) : ''}`);
+    s.close();
+  });
+  const del = s.el.querySelector('[data-del]');
+  if (del) del.addEventListener('click', async () => {
+    const ok = await confirmSheet({ title: 'Delete this schedule?', message: 'Future scheduled orders stop appearing. Orders already rung up stay in the sales history.', confirm: 'Delete schedule', danger: true });
+    if (!ok) return; await deleteDoc('schedules', id); s.close(); toast('Schedule deleted');
+  });
+}
+function customerSchedulesHtml(c) {
+  const list = model.schedules.filter(x => x.customerId === c.id);
+  if (!list.length) return '';
+  return `<div><h3 style="margin-bottom:6px">Scheduled orders</h3>${list.map(x => { const p = schedPriced(x); return `<div class="kv"><span><b>${esc(daysText(x.days))}</b>${x.time ? ' ' + esc(fmtClock(x.time)) : ''} <span class="faint small">${esc(itemsText(x))}${x.active === false ? ', paused' : ''}</span></span><span>${money(p.total)} <button type="button" class="btn quiet sm" data-edit-sched="${esc(x.id)}" data-write>Edit</button></span></div>`; }).join('')}</div>`;
+}
+
+/* ---------- prep plan: servings needed vs cooked stock ---------- */
+function prepPlan(date) {
+  const occ = occurrencesOn(date).filter(o => o.status !== 'skipped');
+  const recipes = {}, resale = {}, orders = [];
+  for (const o of occ) {
+    const p = schedPriced(o.x); orders.push({ o, p });
+    if (o.status === 'done') continue;
+    for (const l of p.lines) {
+      const it = l.item; if (!it) continue; const q = num(l.qty) || 0;
+      if (it.kind === 'recipe') { const r = recipes[it.r.id] || (recipes[it.r.id] = { r: it.r, servings: 0, bySize: {} }); r.servings += q * (it.factor || 1); r.bySize[it.size || ''] = (r.bySize[it.size || ''] || 0) + q; }
+      else { const m = resale[it.m.id] || (resale[it.m.id] = { m: it.m, qty: 0 }); m.qty += q; }
+    }
+  }
+  return { occ, orders, recipes: Object.values(recipes).sort((a, b) => b.servings - a.servings), resale: Object.values(resale) };
+}
+
+Views.schedules = {
+  mount(el) {
+    if (!ui.sched.week) ui.sched.week = weekStartOf(today());
+    if (!ui.sched.day) ui.sched.day = today();
+    el.innerHTML = `<div data-schroot>${sellNav('schedules')}
+      <div class="head"><div><h1>Scheduled orders</h1><p class="sub" data-sub></p></div>
+        <div class="actions" data-write><button class="btn" data-new-sched>${ICON.plus}New schedule</button></div></div>
+      <div class="toolbar"><div class="sr-nav"><button type="button" class="icon-btn" data-wk="-1" aria-label="Previous week">${ICON.back}</button><b data-wklabel class="wk-label"></b><button type="button" class="icon-btn" data-wk="1" aria-label="Next week" style="transform:scaleX(-1)">${ICON.back}</button><button type="button" class="btn quiet sm" data-wk-now>This week</button></div></div>
+      <div data-week></div>
+      <section class="section panel" data-live><div class="panel-head"><h2>Day plan</h2></div><div class="plan-ctrl"><select data-plan-day aria-label="Day"></select><button class="btn ghost sm" data-runsheet>${ICON.file}Run sheet PDF</button></div><div data-plan></div></section>
+      <section class="section"><div class="panel-head"><h2>All schedules</h2></div><div data-all></div></section></div>`;
+    const root = $('[data-schroot]', el);
+    root.addEventListener('click', e => {
+      const t = e.target;
+      const wk = t.closest('[data-wk]'); if (wk) { ui.sched.week = addDays(ui.sched.week, 7 * +wk.dataset.wk); ui.sched.day = ui.sched.week <= today() && today() <= addDays(ui.sched.week, 6) ? today() : ui.sched.week; Views.schedules.update(); return; }
+      if (t.closest('[data-wk-now]')) { ui.sched.week = weekStartOf(today()); ui.sched.day = today(); Views.schedules.update(); return; }
+      if (t.closest('[data-new-sched]')) { editSchedule(null); return; }
+      const oc = t.closest('[data-occ]'); if (oc) { const [sid, d] = oc.dataset.occ.split('|'); openOccurrence(sid, d); return; }
+      const ring = t.closest('[data-ring]'); if (ring) { const [sid, d] = ring.dataset.ring.split('|'); ringUpSchedule(sid, d); return; }
+      const dh = t.closest('[data-dayhead]'); if (dh) { ui.sched.day = dh.dataset.dayhead; Views.schedules.update(); return; }
+      const es = t.closest('[data-edit-sched]'); if (es) { editSchedule(es.dataset.editSched); return; }
+      if (t.closest('[data-runsheet]')) withPdf(() => pdfRunSheet(ui.sched.day));
+    });
+    root.addEventListener('change', e => { if (e.target.matches('[data-plan-day]')) { ui.sched.day = e.target.value; Views.schedules.update(); } });
+  },
+  update() {
+    const el = $('#view'); if (!$('[data-week]', el)) return;
+    const ws = ui.sched.week, we = addDays(ws, 6), t = today();
+    const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+    const byDay = days.map(d => occurrencesOn(d));
+    const all = byDay.flat().filter(o => o.status !== 'skipped');
+    const est = all.reduce((a, o) => a + (o.sale ? num(o.sale.total) || 0 : schedPriced(o.x).total), 0);
+    const active = model.schedules.filter(x => x.active !== false && (!x.endDate || x.endDate >= t)).length;
+    $('[data-sub]', el).textContent = model.schedules.length ? `${active} active schedule${active === 1 ? '' : 's'}. This week: ${all.length} order${all.length === 1 ? '' : 's'}, about ${money(est)}; ${all.filter(o => o.status === 'done').length} done.` : '';
+    $('[data-wklabel]', el).textContent = `Week of ${fmtDate(ws, false)} to ${fmtDate(we)}`;
+    const wk = $('[data-week]', el);
+    if (!model.schedules.length) {
+      wk.innerHTML = `<div class="panel empty"><h3>No scheduled orders yet</h3><p>Set up a customer's regular order once, for example 2 Pork Adobo every Monday and Thursday at 11:30 AM, and it appears here and on the Sell screen each time it's due.</p><button class="btn" data-new-sched data-write>${ICON.plus}New schedule</button></div>`;
+    } else {
+      wk.innerHTML = `<div class="week">${days.map((d, i) => { const list = byDay[i]; const live = list.filter(o => o.status !== 'skipped'); const tot = live.reduce((a, o) => a + (o.sale ? num(o.sale.total) || 0 : schedPriced(o.x).total), 0);
+        return `<div class="wday${d === t ? ' is-today' : ''}${d === ui.sched.day ? ' is-picked' : ''}"><button type="button" class="wday-head" data-dayhead="${d}" aria-label="Plan for ${esc(fmtDate(d))}"><b>${esc(DOW[i])} ${+d.slice(8)}</b><span class="small muted">${live.length ? `${live.length} order${live.length > 1 ? 's' : ''}, ${esc(shortMoney(tot))}` : ''}</span></button>
+          ${list.length ? list.map(o => `<button type="button" class="occ occ-${o.status}" data-occ="${esc(o.x.id)}|${d}"><span class="occ-top"><b>${esc(fmtClock(o.x.time) || 'Any time')}</b>${stPill(SCHED_STATUS, o.status)}</span><span class="occ-name">${esc(custName(o.x))}</span><span class="occ-items">${esc(itemsText(o.x))}</span></button>`).join('') : '<p class="small faint wday-empty">Nothing scheduled</p>'}</div>`; }).join('')}</div>`;
+    }
+    // day plan
+    const sel = $('[data-plan-day]', el);
+    sel.innerHTML = days.map((d, i) => `<option value="${d}"${d === ui.sched.day ? ' selected' : ''}>${esc(DOW_LONG[i])}, ${esc(fmtDate(d, false))}${d === t ? ' (today)' : ''}</option>`).join('');
+    if (!days.includes(ui.sched.day)) { ui.sched.day = days[0]; sel.value = ui.sched.day; }
+    const plan = prepPlan(ui.sched.day);
+    $('[data-plan]', el).innerHTML = !plan.occ.length ? '<p class="muted">No scheduled orders on this day.</p>' : `
+      <p class="small muted" style="margin-bottom:10px">${plan.orders.length} scheduled order${plan.orders.length > 1 ? 's' : ''} on ${esc(fmtDate(ui.sched.day))}, about ${money(plan.orders.reduce((a, x) => a + (x.o.sale ? num(x.o.sale.total) || 0 : x.p.total), 0))}. Kitchen needs below leave out orders already rung up.</p>
+      ${plan.recipes.length || plan.resale.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="sticky">Dish</th><th>Sizes</th><th class="num">Servings needed</th><th class="num">On hand</th><th class="num">Still needed</th><th class="num">To do</th></tr></thead><tbody>
+        ${plan.recipes.map(x => { const order = x.r.stockMode === 'order'; const onH = order ? null : Math.max(0, x.r.fg ? x.r.fg.onHand : 0); const need = order ? x.servings : Math.max(0, x.servings - onH); const y = x.r.rc.yieldUsed || 0;
+          return `<tr data-open="recipe" data-id="${esc(x.r.id)}"><td class="sticky"><span class="name">${esc(x.r.name)}</span></td><td class="small">${esc(Object.entries(x.bySize).map(([k, v]) => (k ? `${qty(v)} ${k}` : `${qty(v)}`)).join(', '))}</td><td class="num">${qty(x.servings, 1)}</td><td class="num">${order ? '<span class="small faint">Made to order</span>' : qty(onH, 1)}</td><td class="num"><b>${qty(need, 1)}</b></td><td class="num small">${!order && need > 0 && y > 0 ? `Cook about ${qty(need / y, 1)} batch${need / y > 1 ? 'es' : ''}` : order ? 'Cook per order' : '<span class="st ok">Covered</span>'}</td></tr>`; }).join('')}
+        ${plan.resale.map(x => `<tr data-open="mat" data-id="${esc(x.m.id)}"><td class="sticky"><span class="name">${esc(x.m.name)}</span></td><td class="small">Sold as is</td><td class="num">${qty(x.qty)}</td><td class="num">${qty(Math.max(0, x.m.onHand))}</td><td class="num"><b>${qty(Math.max(0, x.qty - Math.max(0, x.m.onHand)))}</b></td><td class="num small">${x.qty > x.m.onHand ? '<span class="st warn">Buy more</span>' : '<span class="st ok">In stock</span>'}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted small">Everything on this day has been rung up.</p>'}
+      <h3 style="margin:16px 0 8px">Orders</h3>${plan.orders.map(({ o, p }) => `<div class="kv"><span><b>${esc(fmtClock(o.x.time) || 'Any time')}</b> ${esc(custName(o.x))} <span class="faint small">${esc(itemsText(o.x))}</span></span><span>${stPill(SCHED_STATUS, o.status)} ${o.status === 'due' || o.status === 'missed' ? `<button type="button" class="btn ghost sm" data-ring="${esc(o.x.id)}|${esc(o.date)}" data-write>Ring up</button>` : ''}</span></div>`).join('')}`;
+    // all schedules
+    const allBox = $('[data-all]', el);
+    allBox.innerHTML = model.schedules.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="sticky">Customer</th><th>Days</th><th>Time</th><th>Items</th><th class="num">Per order</th><th class="num">Per week</th><th>Channel</th><th>Next</th><th>Status</th></tr></thead><tbody>
+      ${model.schedules.map(x => { const p = schedPriced(x); let next = null; for (let i = 0; i < 60 && !next; i++) { const d = addDays(t, i); if (schedRunsOn(x, d) && !x.skips[d] && !model.schedDone[x.id + '|' + d]) next = d; }
+        const ended = x.endDate && x.endDate < t; const status = x.active === false ? ['Paused', 'mute'] : ended ? ['Ended', 'mute'] : ['Active', 'ok'];
+        return `<tr data-edit-sched="${esc(x.id)}" style="cursor:pointer"><td class="sticky"><span class="name">${esc(custName(x))}</span>${pendingTag('schedules/' + x.id)}</td><td class="nowrap">${esc(daysText(x.days))}</td><td class="nowrap">${esc(fmtClock(x.time) || '')}</td><td class="small">${esc(itemsText(x))}</td><td class="num">${money(p.total)}</td><td class="num">${money(p.total * x.days.length)}</td><td class="small">${esc(p.cat.ch.name)}</td><td class="nowrap">${next ? esc(fmtDate(next, false)) : DASH}</td><td><span class="st ${status[1]}">${status[0]}</span></td></tr>`; }).join('')}
+    </tbody></table></div>` : '';
+  }
+};
+async function pdfRunSheet(date) {
+  const plan = prepPlan(date);
+  const ctx = pdfStart('Delivery and pickup run sheet', `${new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}. ${plan.orders.length} scheduled order${plan.orders.length === 1 ? '' : 's'}.`);
+  if (!plan.orders.length) { pdfParagraph(ctx, 'No scheduled orders on this day.'); await pdfFinish(ctx, `run-sheet-${date}.pdf`); return; }
+  const R = { halign: 'right' };
+  pdfTable(ctx, ['Time', 'Customer', 'Address', 'Items', 'Total', 'Payment', 'Done'],
+    plan.orders.map(({ o, p }) => { const x = o.x; const addr = (x.address || (x.cust && x.cust.address) || '').replace(/\n/g, ', ');
+      return [fmtClock(x.time) || 'Any', `${custName(x)}${x.cust && x.cust.phone ? '\n' + x.cust.phone : ''}`, addr + (x.note ? `\nNote: ${x.note}` : ''), p.lines.map(l => `${qty(num(l.qty))} x ${itemLabel(l)}`).join('\n'), money(o.sale ? num(o.sale.total) : p.total), `${x.payment || ''}\n${p.cat.ch.name}`, o.status === 'done' ? 'Rung up' : o.status === 'skipped' ? 'Skipped' : '']; }),
+    { rowH: 34, columnStyles: { 0: { cellWidth: 48 }, 1: { cellWidth: 88 }, 2: { cellWidth: 112 }, 4: { cellWidth: 62, halign: 'right' }, 5: { cellWidth: 66 }, 6: { cellWidth: 44 } } });
+  if (plan.recipes.length) {
+    pdfHeading(ctx, 'Kitchen needs (not yet rung up)');
+    pdfTable(ctx, ['Dish', 'Sizes', 'Servings'], plan.recipes.map(x => [x.r.name, Object.entries(x.bySize).map(([k, v]) => (k ? `${qty(v)} ${k}` : `${qty(v)}`)).join(', '), qty(x.servings, 1)]), { rowH: 16, columnStyles: { 2: { cellWidth: 70, halign: 'right' } } });
+  }
+  pdfSign(ctx, ['Prepared by', 'Rider', 'Checked by']);
+  await pdfFinish(ctx, `run-sheet-${date}.pdf`);
 }
 
 /* =========================================================
