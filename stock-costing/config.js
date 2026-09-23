@@ -6,6 +6,6 @@
 // people must sign in, and the database rules decide what each person can do.
 // Never paste the "service_role" or "secret" key here.
 window.SC_CONFIG = {
-  SUPABASE_URL: 'https://YOUR-PROJECT.supabase.co',
-  SUPABASE_ANON_KEY: 'PASTE-YOUR-ANON-KEY-HERE'
+  SUPABASE_URL: 'https://acadnglmivvkzzzxuzpl.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_PD_ABMn_gkCQe0e7qaKF2A_B_QLpsCK'
 };
