@@ -786,6 +786,12 @@ th.num .th-sort{flex-direction:row}
   #toasts{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
   body:has(.pos-bar) #toasts{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 }
+/* typed quantities in the cart and unit pickers in stock forms */
+.stepper .qty-in{width:68px;height:100%;min-height:34px;border:0;border-left:1px solid var(--rule);border-right:1px solid var(--rule);border-radius:0;background:transparent;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;padding:0 4px;box-shadow:none}
+.stepper .qty-in:focus{background:var(--surface-2);box-shadow:inset 0 0 0 2px var(--focus)}
+.prod-price small{font-size:.62em;font-weight:600;color:var(--ink-3);margin-left:2px}
+.unitbox .unit-sel{width:auto;height:auto;min-height:0;border:0;background:transparent;padding:0 4px;font-size:14px;color:var(--ink-2);box-shadow:none;cursor:pointer}
+.unitbox .unit-sel:focus{box-shadow:none;color:var(--ink)}
 
 </style>
 <script src="config.js"></script>
@@ -881,6 +887,43 @@ function qty(v, dp = 3) {
   const r = Math.round(v * 10 ** dp) / 10 ** dp;
   return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-US', { maximumFractionDigits: dp });
 }
+/* Quantities: stored to 6 decimals so conversions stay exact, shown to 3 (5.780 kg) */
+const q3 = v => Math.round(v * 1000) / 1000;
+const q6 = v => Math.round(v * 1e6) / 1e6;
+function fq(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const r = q3(v);
+  if (Number.isInteger(r)) return qty(r);
+  return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+const PURCHASE_TAX = [['', 'Not set'], ['vatable', 'VATable purchase (with input VAT)'], ['exempt', 'VAT-exempt purchase'], ['zero', 'Zero-rated purchase']];
+/* Units a quantity can be entered in for an item: its stock unit, compatible units, and its purchase unit */
+function unitChoices(m) {
+  if (!m) return [];
+  const u = m.unit || '', lu = nu(u), out = [u];
+  for (const x of MASS[lu] ? ['kg', 'g'] : VOL[lu] ? ['L', 'ml'] : []) if (nu(x) !== lu) out.push(x);
+  if (m.buyUnit && num(m.buyFactor) > 0 && !out.some(x => nu(x) === nu(m.buyUnit))) out.push(m.buyUnit);
+  return out;
+}
+function unitFactor(m, u) {
+  if (!m) return null;
+  if (!u || nu(u) === nu(m.unit)) return 1;
+  if (m.buyUnit && nu(u) === nu(m.buyUnit) && num(m.buyFactor) > 0) return num(m.buyFactor);
+  return convertQty(1, u, m.unit);
+}
+function unitSelectHtml(m) {
+  const ch = unitChoices(m);
+  if (ch.length <= 1) return `<span data-unit>${esc(ch[0] || '')}</span>`;
+  return `<select data-k="unit" class="unit-sel" aria-label="Unit for ${esc(m.name)}">${ch.map(u => `<option value="${esc(u)}">${esc(m.buyUnit && nu(u) === nu(m.buyUnit) ? `${u} (${fq(num(m.buyFactor))} ${m.unit})` : u)}</option>`).join('')}</select>`;
+}
+function setUnitPicker(line, m) {
+  const w = line.querySelector('[data-unitwrap]'); if (!w) return;
+  const id = m ? m.id : '';
+  if (w.dataset.mid === id) return;
+  w.dataset.mid = id; w.innerHTML = m ? unitSelectHtml(m) : '<span data-unit></span>';
+  line.dataset.f = '1';
+}
+const lineUnit = (line, m) => { const sel = line.querySelector('[data-k="unit"]'); return sel ? sel.value : (m ? m.unit : ''); };
 const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
 function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'x'; }
 function titleCase(s) { return String(s || '').toLowerCase().replace(/(^|[\s/&(-])([a-z])/g, (m, a, b) => a + b.toUpperCase()); }
@@ -1008,20 +1051,21 @@ function computeMaterials(materials, entries) {
   const mats = Object.entries(materials).map(([id, d]) => ({ ...d, id }));
   const agg = {};
   for (const m of mats) agg[m.id] = { purchases: [], moves: [], qIn: 0, qOut: 0, pq: 0, pv: 0 };
+  const U = v => Math.round(v * 1e6);
   for (const e of entries) {
     if (e.void) continue;
     const a = agg[e.materialId]; if (!a) continue;
     const q = num(e.qty) || 0;
     a.moves.push(e);
-    if (e.type === 'purchase') { a.purchases.push(e); a.pq += q; a.pv += q * (num(e.unitCost) || 0); a.qIn += q; }
-    else if (isOut(e)) a.qOut += q;
-    else if (e.type === 'adjust') { if (q >= 0) a.qIn += q; else a.qOut += -q; }
+    if (e.type === 'purchase') { a.purchases.push(e); a.pq += U(q); a.pv += q * (num(e.unitCost) || 0); a.qIn += U(q); }
+    else if (isOut(e)) a.qOut += U(q);
+    else if (e.type === 'adjust') { if (q >= 0) a.qIn += U(q); else a.qOut += U(-q); }
   }
   for (const m of mats) {
     const a = agg[m.id];
     m.purchases = a.purchases; m.moves = a.moves;
-    m.totalPurchased = a.pq;
-    m.wac = a.pq > 0 ? a.pv / a.pq : null;
+    m.totalPurchased = a.pq / 1e6;
+    m.wac = a.pq > 0 ? a.pv / (a.pq / 1e6) : null;
     const last = a.purchases[a.purchases.length - 1];
     m.latestCost = last ? num(last.unitCost) : null;
     m.latestDate = last ? last.date : null;
@@ -1034,8 +1078,8 @@ function computeMaterials(materials, entries) {
     else if (m.latestCost > 0) { m.pricingCost = m.latestCost; m.priceSource = 'Latest purchase'; }
     else if (m.wac > 0) { m.pricingCost = m.wac; m.priceSource = 'Weighted average'; }
     else { m.pricingCost = null; m.priceSource = 'No price'; }
-    m.qIn = a.qIn; m.qOut = a.qOut;
-    m.onHand = a.qIn - a.qOut;
+    m.qIn = a.qIn / 1e6; m.qOut = a.qOut / 1e6;
+    m.onHand = (a.qIn - a.qOut) / 1e6;
     m.bookCost = m.wac ?? m.pricingCost ?? 0;
     m.value = m.onHand * m.bookCost;
     const min = num(m.minStock) || 0;
@@ -1228,7 +1272,7 @@ function compute(view) {
   const soldUse = [];
   for (const sa of sales) {
     if (sa.void) continue;
-    (sa.items || []).forEach((it, i) => (it.use || []).forEach((u, j) => soldUse.push({ id: `${sa.id}:${i}:${j}`, type: 'sold', materialId: u.m, qty: u.q, unitCost: u.c, unit: '', date: sa.date, at: sa.at, purpose: `Sale ${sa.receipt || ''}`.trim(), saleId: sa.id })));
+    (sa.items || []).forEach((it, i) => (it.use || []).forEach((u, j) => soldUse.push({ id: `${sa.id}:${i}:${j}`, type: 'sold', materialId: u.m, qty: u.q, unitCost: u.c, unit: '', date: sa.date, at: sa.at, purpose: `Sale ${sa.receipt || ''}`.trim(), saleId: sa.id, receipt: sa.receipt || '', recipeId: it.recipeId || null, itemName: it.name + (it.size ? ' ' + it.size : ''), customer: (sa.customer && (sa.customer.name || sa.customer.phone)) || '', by: sa.by || null })));
   }
   const allMats = computeMaterials(view.materials, soldUse.length ? [...entries, ...soldUse].sort(byTime) : entries);
   const matById = {}; for (const m of allMats) matById[m.id] = m;
@@ -1347,7 +1391,7 @@ function compute(view) {
   const schedules = Object.entries(view.schedules || {}).map(([id, d]) => ({ ...d, id, cust: custById[d.customerId] || null, days: Array.isArray(d.days) ? d.days : [], items: Array.isArray(d.items) ? d.items : [], skips: d.skips || {} }))
     .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')) || String((a.cust && a.cust.name) || '').localeCompare(String((b.cust && b.cust.name) || '')));
   const schedById = {}; for (const x of schedules) schedById[x.id] = x;
-  return { S, entries, events, log, allMats, mats, matById, recipes, recById, suppliers, supStats, pos, poById, sales, fgById, customers, custById, schedules, schedById, schedDone, payments, receivables, ar };
+  return { S, entries, events, log, allMats, mats, matById, recipes, recById, suppliers, supStats, pos, poById, sales, fgById, customers, custById, schedules, schedById, schedDone, payments, receivables, ar, soldMoves: soldUse };
 }
 
 /* Monthly report, mirrors the "Monthly Inventory Report" sheet */
@@ -1829,9 +1873,9 @@ const pendingTag = key => (pendingKeys.has(key) ? ' <span class="tape" title="Sa
 function chg(v) { if (v == null) return '<span class="faint">—</span>'; return `<span class="${v > 0 ? 'chg-up' : v < 0 ? 'chg-down' : ''}">${signedPct(v)}</span>`; }
 function unitOf(matId) { const m = model.matById[matId]; return m ? m.unit : ''; }
 function catSorter(list) { return (a, b) => { const ia = list.indexOf(a), ib = list.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b); }; }
-function matOptions(selected) {
+function matOptions(selected, opts = {}) {
   const groups = {};
-  for (const m of model.allMats) { if (m.archived && m.id !== selected) continue; (groups[m.category || 'Other'] ||= []).push(m); }
+  for (const m of model.allMats) { if (m.archived && m.id !== selected) continue; if (opts.recipe && m.useInRecipes === false && m.id !== selected) continue; (groups[m.category || 'Other'] ||= []).push(m); }
   const cats = Object.keys(groups).sort(catSorter(model.S.materialCategories));
   return `<option value="">Choose material…</option>` + cats.map(c => `<optgroup label="${esc(c)}">${groups[c].sort(byName).map(m => `<option value="${esc(m.id)}"${m.id === selected ? ' selected' : ''}>${esc(m.name)} (${esc(m.unit)})</option>`).join('')}</optgroup>`).join('');
 }
@@ -2152,7 +2196,7 @@ Views.stock = {
       <div class="dash-grid" data-dash></div>
       <section class="table-card" aria-labelledby="mat-h" style="scroll-margin-top:76px">
         <div class="tc-head"><h2 id="mat-h">All materials</h2>
-          <div class="search">${ICON.search}<input type="search" placeholder="Search materials or suppliers" aria-label="Search materials or suppliers" data-f="q" value="${esc(f.q)}"></div>
+          <div class="search">${ICON.search}<input type="search" placeholder="Search name, SKU or supplier" aria-label="Search by name, SKU or supplier" data-f="q" value="${esc(f.q)}"></div>
           <select data-f="cat" aria-label="Filter by category">${options(cats, f.cat, 'All categories')}</select>
           <span class="spacer"></span><span data-reorder></span>
         </div>
@@ -2168,7 +2212,7 @@ Views.stock = {
   update() {
     const el = $('#view');
     const f = ui.stock, q = f.q.trim().toLowerCase(), M = model.mats;
-    const base = M.filter(m => (!f.cat || (m.category || 'Other') === f.cat) && (!q || (m.name + ' ' + (m.supplier || '') + ' ' + (m.category || '')).toLowerCase().includes(q)));
+    const base = M.filter(m => (!f.cat || (m.category || 'Other') === f.cat) && (!q || (m.name + ' ' + (m.sku || '') + ' ' + (m.supplier || '') + ' ' + (m.category || '')).toLowerCase().includes(q)));
     const counts = {
       all: base.length, reorder: base.filter(m => m.status === 'reorder').length, negative: base.filter(m => m.status === 'negative').length,
       noprice: base.filter(m => !(m.pricingCost > 0)).length, setmin: base.filter(m => m.status === 'setmin').length
@@ -2200,7 +2244,7 @@ Views.stock = {
     $('[data-dash]', el).innerHTML = M.length ? `
       <section class="card" aria-labelledby="dl-h"><div class="card-head"><h2 id="dl-h">Recent deliveries</h2><button type="button" class="link" data-all-deliveries>View all deliveries</button></div>
         ${dels.length ? `<ul class="feed">${dels.map(e => { const m = model.matById[e.materialId] || model.allMats.find(x => x.id === e.materialId); const nm = m ? m.name : 'Removed material';
-          return `<li><span class="feed-ico" aria-hidden="true">${ICON.receive}</span><span class="feed-main"><b>${esc(nm)}, ${esc(qty(num(e.qty)))} ${esc(e.unit || (m && m.unit) || '')} at ${esc(money(num(e.unitCost)))}</b><span>${esc(fmtDate(e.date))}${e.supplier ? ', ' + esc(e.supplier) : ''}</span></span><span class="feed-amt">${money((num(e.qty) || 0) * (num(e.unitCost) || 0))}</span></li>`; }).join('')}</ul>`
+          return `<li><span class="feed-ico" aria-hidden="true">${ICON.receive}</span><span class="feed-main"><b>${esc(nm)}, ${esc(fq(num(e.qty)))} ${esc(e.unit || (m && m.unit) || '')} at ${esc(money(num(e.unitCost)))}</b><span>${esc(fmtDate(e.date))}${e.supplier ? ', ' + esc(e.supplier) : ''}</span></span><span class="feed-amt">${money((num(e.qty) || 0) * (num(e.unitCost) || 0))}</span></li>`; }).join('')}</ul>`
           : `<p class="feed-empty">No deliveries recorded yet. Use Receive delivery when stock arrives.</p>`}
       </section>
       <section class="card" aria-labelledby="vc-h"><div class="card-head"><h2 id="vc-h">Stock value by category</h2></div>
@@ -2219,10 +2263,10 @@ Views.stock = {
       ${sortTh(f, 'name', 'Material', 'sticky')}${sortTh(f, 'cat', 'Category')}${sortTh(f, 'onhand', 'On hand', 'num', true)}${sortTh(f, 'min', 'Minimum', 'num', true)}${sortTh(f, 'status', 'Status')}
       ${sortTh(f, 'wac', 'Avg cost', 'num', true)}${sortTh(f, 'value', 'Stock value', 'num', true)}${sortTh(f, 'price', 'Price for recipes', 'num', true)}${sortTh(f, 'change', 'Last change', 'num', true)}<th scope="col" class="num pin-r">Actions</th></tr></thead><tbody>
       ${pg.list.map(m => `<tr data-open="mat" data-id="${esc(m.id)}">
-        <td class="sticky c-main"><span class="name">${esc(m.name)}</span>${pendingTag('materials/' + m.id)}${m.supplier ? `<div class="small faint">${esc(m.supplier)}</div>` : ''}</td>
+        <td class="sticky c-main"><span class="name">${esc(m.name)}</span>${pendingTag('materials/' + m.id)}<div class="small faint">${[m.sku ? 'SKU ' + esc(m.sku) : '', m.supplier ? esc(m.supplier) : ''].filter(Boolean).join(', ')}</div></td>
         <td class="c-main">${catChip(m.category)}</td>
-        <td class="num c-side"><b>${qty(m.onHand)}</b> <span class="faint">${esc(m.unit)}</span></td>
-        <td class="num c-hide" data-label="Minimum">${num(m.minStock) ? qty(num(m.minStock)) : '<span class="faint">Not set</span>'}</td>
+        <td class="num c-side"><b>${fq(m.onHand)}</b> <span class="faint">${esc(m.unit)}</span></td>
+        <td class="num c-hide" data-label="Minimum">${num(m.minStock) ? fq(num(m.minStock)) : '<span class="faint">Not set</span>'}</td>
         <td class="c-wide">${stPill(MAT_STATUS, m.status)}</td>
         <td class="num c-hide" data-label="Avg cost">${M_(m.wac)}</td>
         <td class="num c-side" data-label="Value">${m.onHand ? money(m.value) : '<span class="faint">—</span>'}</td>
@@ -2261,11 +2305,11 @@ Views.movements = {
   },
   update() {
     const el = $('#view'); const f = ui.moves; const q = f.q.trim().toLowerCase();
-    const base = model.log.filter(e => (f.showVoid || !e.void) && (!f.from || e.date >= f.from) && (!f.to || e.date <= f.to) && (!q || entryText(e).includes(q)));
+    const base = allMoves().filter(e => (f.showVoid || !e.void) && (!f.from || e.date >= f.from) && (!f.to || e.date <= f.to) && (!q || entryText(e).includes(q)));
     const grp = { waste: ['waste', 'dishwaste'], adjust: ['adjust', 'fgadjust'] };
     const match = (e, t) => t === 'all' || (grp[t] ? grp[t].includes(e.type) : e.type === t);
     const c = t => base.filter(e => match(e, t)).length;
-    const segs = [['all', 'All', base.length], ['purchase', 'Received', c('purchase')], ['issue', 'Issued', c('issue')], ['production', 'Production', c('production')], ['waste', 'Waste', c('waste')], ['adjust', 'Adjustments', c('adjust')]];
+    const segs = [['all', 'All', base.length], ['purchase', 'Received', c('purchase')], ['issue', 'Issued', c('issue')], ['production', 'Production', c('production')], ['sold', 'Sold', c('sold')], ['waste', 'Waste', c('waste')], ['adjust', 'Adjustments', c('adjust')]];
     $('[data-seg-wrap]', el).innerHTML = segHtml(segs.filter(x => x[0] === 'all' || x[2] || x[0] === f.type), f.type);
     const rows = base.filter(e => match(e, f.type)).slice().reverse();
     const live = $('[data-live]', el);
@@ -2288,17 +2332,20 @@ Views.movements = {
         detail = [`${qty(b)} batch${b === 1 ? '' : 'es'}`, num(e.finishedQty) ? `finished ${qty(num(e.finishedQty))} ${e.measureUnit || ''}` : '', e.issued ? 'ingredients issued' : ''].filter(Boolean).join(', ');
       } else if (e.type === 'dishwaste') {
         signed = -qv; unitTxt = 'servings'; detail = e.reason || '';
+      } else if (e.type === 'sold') {
+        whoWhere = esc(e.customer || 'Walk-in');
+        detail = `Order ${e.receipt || ''}${e.recipeId ? `, ${e.itemName} (made to order)` : ''}`;
       }
       body += `<tr class="${e.void ? 'void' : ''}">
         <td class="sticky"><span class="name">${esc(title)}</span>${pendingTag('e/' + e.id)}</td>
         <td class="nowrap">${esc(TYPES[e.type] || e.type)}</td>
-        <td class="num ${e.type === 'production' ? '' : signed > 0 ? 'pos' : signed < 0 ? 'neg' : ''}">${signed > 0 && e.type !== 'production' ? '+' : ''}${qty(signed)} <span class="faint">${unitTxt}</span></td>
+        <td class="num ${e.type === 'production' ? '' : signed > 0 ? 'pos' : signed < 0 ? 'neg' : ''}">${signed > 0 && e.type !== 'production' ? '+' : ''}${e.materialId ? fq(signed) : qty(signed)} <span class="faint">${unitTxt}</span>${e.entered && e.entered.unit ? `<div class="small faint">Entered as ${esc(fq(num(e.entered.qty)))} ${esc(e.entered.unit)}</div>` : ''}</td>
         <td class="num">${M(ucost)}</td>
         <td class="num">${M(val)}</td>
         <td>${whoWhere}</td>
         <td class="small">${esc(detail)}${e.remarks ? `<div class="faint">${esc(e.remarks)}</div>` : ''}${e.void ? `<div class="keep st bad">Voided${e.voidReason ? ': ' + esc(e.voidReason) : ''}</div>` : ''}</td>
         <td class="small muted keep nowrap">${who(e.by)}${e.at ? `<span class="faint">, ${esc(fmtTime(e.at))}</span>` : ''}</td>
-        <td class="keep w-min">${!e.void ? `<button class="btn quiet sm" data-act="void" data-day="${esc(e.day)}" data-id="${esc(e.id)}" data-write>Void</button>` : ''}</td></tr>`;
+        <td class="keep w-min">${e.type === 'sold' ? `<button class="btn quiet sm" data-open-sale="${esc(e.saleId)}">View order</button>` : !e.void ? `<button class="btn quiet sm" data-act="void" data-day="${esc(e.day)}" data-id="${esc(e.id)}" data-write>Void</button>` : ''}</td></tr>`;
     }
     live.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="sticky">Material</th><th>Type</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Value</th><th>Supplier / staff</th><th>Details</th><th>Logged by</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
       ${rows.length > shown.length ? `<div class="more"><button class="btn ghost" data-act="more-moves">Show more (${rows.length - shown.length} older)</button></div>` : ''}`;
@@ -2307,8 +2354,12 @@ Views.movements = {
 };
 function entryText(e) {
   const m = model.matById[e.materialId], r = e.recipeId ? model.recById[e.recipeId] : null;
-  return [m && m.name, r && r.name, e.supplier, e.staff, e.purpose, e.reason, e.invoice, e.poNumber, e.remarks, TYPES[e.type]].filter(Boolean).join(' ').toLowerCase();
+  return [m && m.name, m && m.sku, r && r.name, e.supplier, e.staff, e.purpose, e.reason, e.invoice, e.poNumber, e.remarks, e.customer, e.itemName, TYPES[e.type]].filter(Boolean).join(' ').toLowerCase();
 }
+/* Every stock movement: entries typed into stock forms plus the stock each sale used */
+const moveTime = (a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.at || '').localeCompare(String(b.at || ''));
+const allMoves = () => (model.soldMoves && model.soldMoves.length ? [...model.log, ...model.soldMoves].sort(moveTime) : model.log);
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-open-sale]'); if (b) openReceipt(b.dataset.openSale); });
 
 /* =========================================================
    Recipes list
@@ -2949,7 +3000,11 @@ function openMaterial(id) {
         <button class="btn ghost" data-mact="edit">${ICON.edit}Edit</button>
       </div>
       <dl class="facts">
-        <div><dt>On hand</dt><dd><b>${qty(m.onHand)}</b> ${esc(m.unit)}</dd></div>
+        <div><dt>On hand</dt><dd><b>${fq(m.onHand)}</b> ${esc(m.unit)}</dd></div>
+        ${m.sku ? `<div><dt>SKU</dt><dd>${esc(m.sku)}</dd></div>` : ''}
+        ${m.buyUnit && num(m.buyFactor) > 0 ? `<div><dt>Purchase unit</dt><dd>1 ${esc(m.buyUnit)} = ${fq(num(m.buyFactor))} ${esc(m.unit)}</dd></div>` : ''}
+        <div><dt>Used as</dt><dd>${[m.useInRecipes === false ? '' : 'Recipe ingredient', m.sellable ? `Sold directly${num(m.sellStep) > 0 && num(m.sellStep) !== 1 ? `, steps of ${fq(num(m.sellStep))} ${esc(m.unit)}` : ''}` : ''].filter(Boolean).join('; ') || '<span class="faint">Not set</span>'}</dd></div>
+        <div><dt>Purchase tax class</dt><dd>${esc((PURCHASE_TAX.find(x => x[0] === (m.purchaseTax || '')) || PURCHASE_TAX[0])[1])}</dd></div>
         <div><dt>Minimum / order up to</dt><dd>${num(m.minStock) ? qty(num(m.minStock)) + ' ' + esc(m.unit) : '<span class="faint">Not set</span>'}${num(m.par) ? ` <small>/ ${qty(num(m.par))}</small>` : ''}</dd></div>
         <div><dt>Stock value</dt><dd>${M(m.value)}</dd></div>
         <div><dt>Weighted avg purchase cost</dt><dd>${M(m.wac)}</dd></div>
@@ -2980,24 +3035,31 @@ function editMaterial(id) {
   const s = sheet({
     title: id ? 'Edit material' : 'New material',
     body: `<div class="note bad" data-err hidden></div>
-      <label class="f">Name<input type="text" name="name" value="${esc(d.name)}" autofocus></label>
       <div class="grid g2">
+        <label class="f">Name<input type="text" name="name" value="${esc(d.name)}" autofocus></label>
+        <label class="f">SKU<input type="text" name="sku" value="${esc(d.sku || '')}" placeholder="Optional, like VEG-CAB-01" autocomplete="off"></label>
         <label class="f">Category<select name="category">${options(S.materialCategories, d.category)}</select></label>
-        <label class="f">Stock unit<select name="unit">${options(S.units, d.unit)}</select><span class="hint">The unit you buy and count in.</span></label>
+        <label class="f">Stock unit<select name="unit">${options(S.units, d.unit)}</select><span class="hint">The unit you count stock in. Grams and kilos convert automatically.</span></label>
+        <label class="f">Also buys in<input type="text" name="buyUnit" list="dl-buyu" value="${esc(d.buyUnit || '')}" placeholder="Optional, like sack or box" autocomplete="off">${datalist('dl-buyu', ['sack', 'box', 'case', 'tray', 'bag', 'pack', 'bundle', 'crate'])}<span class="hint">Lets you receive in this unit too.</span></label>
+        <label class="f">How much is one?<span class="unitbox"><input inputmode="decimal" name="buyFactor" value="${num(d.buyFactor) > 0 ? num(d.buyFactor) : ''}" placeholder="Like 25"><span data-stockunit>${esc(d.unit || '')}</span></span><span class="hint">Stock units in one purchase unit.</span></label>
         <label class="f">Minimum stock<input inputmode="decimal" name="minStock" value="${esc(d.minStock ?? '')}"><span class="hint">Reorder alert at or below this.</span></label>
         <label class="f">Order up to (par level)<input inputmode="decimal" name="par" value="${num(d.par) > 0 ? num(d.par) : ''}" placeholder="Optional"><span class="hint">Purchase orders suggest enough to reach this.</span></label>
         <label class="f">Preferred supplier<input type="text" name="supplier" list="dl-msup" value="${esc(d.supplier || '')}" autocomplete="off">${datalist('dl-msup', supNames)}</label>
         <label class="f">Current quote per unit<input inputmode="decimal" name="quote" value="${num(d.quote) > 0 ? num(d.quote) : ''}" placeholder="Optional"><span class="hint">Overrides purchase prices in recipe costing.</span></label>
         <label class="f">Quote date<input type="date" name="quoteDate" value="${esc(d.quoteDate || '')}"></label>
+        <label class="f">Purchase tax class<select name="purchaseTax">${PURCHASE_TAX.map(([k, l]) => `<option value="${k}"${(d.purchaseTax || '') === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select><span class="hint">For your records. Costing still uses the price you enter.</span></label>
       </div>
-      <div class="fill" style="display:block"><label class="check"><input type="checkbox" name="sellable" ${d.sellable ? 'checked' : ''}>Sell as-is on the Sell screen, for bottled drinks or packaged snacks</label>
+      <label class="check" style="margin-top:4px"><input type="checkbox" name="useInRecipes" ${d.useInRecipes === false ? '' : 'checked'}>Can be used as a recipe ingredient</label>
+      <div class="fill" style="display:block"><label class="check"><input type="checkbox" name="sellable" ${d.sellable ? 'checked' : ''}>Sell directly on the Sell screen, like fresh produce, meat, drinks or dry goods</label>
         <div class="grid g2" style="margin-top:10px" data-sellbox ${d.sellable ? '' : 'hidden'}><label class="f">Selling price per ${esc(d.unit || 'unit')}<input inputmode="decimal" name="sellPrice" value="${num(d.sellPrice) > 0 ? num(d.sellPrice) : ''}" placeholder="${m && resaleSuggested(m, S.channels[0]) ? 'Suggested ' + money(resaleSuggested(m, S.channels[0])) : 'Enter price'}"><span class="hint">Leave blank to use the suggested price from your pricing assumptions.</span></label>
+          <label class="f">Sell in steps of<span class="unitbox"><input inputmode="decimal" name="sellStep" value="${num(d.sellStep) > 0 ? num(d.sellStep) : 1}"><span data-stockunit>${esc(d.unit || '')}</span></span><span class="hint">What one tap adds, like 0.250 kg. Cashiers can still type any amount.</span></label>
           <label class="f">VAT<select name="sellVat">${VAT_TYPES.map(([k, l]) => `<option value="${k}"${(d.sellVat || 'vatable') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div></div>
       ${id && m && m.moves.length ? `<p class="small faint" data-unitnote hidden>Past movements were recorded in ${esc(raw.unit)}. Changing the unit doesn't convert them.</p>` : ''}`,
     foot: `${id ? (inUse ? `<button class="btn danger" data-arch>${d.archived ? 'Restore' : 'Archive'}</button>` : `<button class="btn danger" data-del>Delete</button>`) : ''}<span class="grow"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" data-save>${id ? 'Save changes' : 'Add material'}</button>`
   });
   const f = n => s.el.querySelector(`[name="${n}"]`);
   f('sellable').addEventListener('change', () => { s.el.querySelector('[data-sellbox]').hidden = !f('sellable').checked; });
+  f('unit').addEventListener('change', () => { $$('[data-stockunit]', s.el).forEach(x => { x.textContent = f('unit').value; }); });
   const un = s.el.querySelector('[data-unitnote]');
   if (un) f('unit').addEventListener('change', () => { un.hidden = f('unit').value === raw.unit; });
   s.el.querySelector('[data-save]').addEventListener('click', async () => {
@@ -3012,10 +3074,17 @@ function editMaterial(id) {
     if (f('sellable').checked && sellPrice != null && !(sellPrice > 0)) { errs.push('Selling price must be above zero'); f('sellPrice').setAttribute('aria-invalid', 'true'); }
     const par = f('par').value.trim() === '' ? null : num(f('par').value);
     if (par != null && !(par >= 0)) { errs.push('Par level must be zero or more'); f('par').setAttribute('aria-invalid', 'true'); }
+    const sku = f('sku').value.trim();
+    if (sku && model.allMats.some(x => x.id !== id && String(x.sku || '').trim().toLowerCase() === sku.toLowerCase())) { errs.push(`SKU ${sku} is already used by another item`); f('sku').setAttribute('aria-invalid', 'true'); }
+    const buyUnit = f('buyUnit').value.trim(), buyFactor = f('buyFactor').value.trim() === '' ? null : num(f('buyFactor').value);
+    if (buyUnit && !(buyFactor > 0)) { errs.push(`Enter how many ${f('unit').value} are in one ${buyUnit}`); f('buyFactor').setAttribute('aria-invalid', 'true'); }
+    if (buyUnit && nu(buyUnit) === nu(f('unit').value)) { errs.push('The purchase unit must differ from the stock unit'); f('buyUnit').setAttribute('aria-invalid', 'true'); }
+    const sellStep = f('sellStep').value.trim() === '' ? 1 : num(f('sellStep').value);
+    if (!(sellStep > 0)) { errs.push('The selling step must be above zero'); f('sellStep').setAttribute('aria-invalid', 'true'); }
     const quote = f('quote').value.trim() === '' ? null : num(f('quote').value);
     if (quote != null && !(quote >= 0)) { errs.push('Quote must be a number'); f('quote').setAttribute('aria-invalid', 'true'); }
     if (errs.length) { err.hidden = false; err.textContent = errs.join('. ') + '.'; return; }
-    const full = { ...d, name, category: f('category').value, unit: f('unit').value, minStock, par: par > 0 ? par : null, sellable: f('sellable').checked, sellPrice: sellPrice > 0 ? sellPrice : null, sellVat: f('sellVat').value, supplier: f('supplier').value.trim(), quote: quote > 0 ? quote : null, quoteDate: quote > 0 ? (f('quoteDate').value || today()) : null };
+    const full = { ...d, name, sku, buyUnit: buyUnit || '', buyFactor: buyUnit && buyFactor > 0 ? q6(buyFactor) : null, purchaseTax: f('purchaseTax').value, useInRecipes: f('useInRecipes').checked, sellStep: q3(sellStep) || 1, category: f('category').value, unit: f('unit').value, minStock, par: par > 0 ? par : null, sellable: f('sellable').checked, sellPrice: sellPrice > 0 ? sellPrice : null, sellVat: f('sellVat').value, supplier: f('supplier').value.trim(), quote: quote > 0 ? quote : null, quoteDate: quote > 0 ? (f('quoteDate').value || today()) : null };
     const newId = id || 'm-' + slug(name) + '-' + uid().slice(-4);
     await saveDoc('materials', newId, full, raw);
     toast(id ? 'Material saved' : `${name} added`);
@@ -3066,17 +3135,18 @@ function openReceive({ materialId, poId } = {}) {
     const div = document.createElement('div');
     div.className = 'line rcv'; div.dataset.line = ''; if (poLine) { div.dataset.poLine = poLine; div.dataset.poMat = mid; }
     div.innerHTML = `<label class="f f-mat"><span class="lbl">Item</span><select data-k="mat">${matOptions(mid)}</select></label>
-      <label class="f f-qty"><span class="lbl">Quantity</span><span class="unitbox"><input inputmode="decimal" data-k="qty" placeholder="0" value="${esc(q)}"><span data-unit>${esc(unitOf(mid))}</span></span></label>
+      <label class="f f-qty"><span class="lbl">Quantity</span><span class="unitbox"><input inputmode="decimal" data-k="qty" placeholder="0" value="${esc(q)}"><span data-unitwrap></span></span></label>
       <label class="f f-cost"><span class="lbl">Unit cost</span><input inputmode="decimal" data-k="cost" placeholder="0.00" value="${esc(c)}"></label>
       <label class="f f-total"><span class="lbl">Line total</span><input inputmode="decimal" data-k="total" placeholder="0.00"></label>
       <button type="button" class="icon-btn" data-remove aria-label="Remove item">${ICON.trash}</button>`;
     box.appendChild(div);
+    setUnitPicker(div, model.matById[mid]);
     if (mid) onMat(div);
     return div;
   }
   function onMat(line) {
     const m = model.matById[line.querySelector('[data-k="mat"]').value];
-    line.querySelector('[data-unit]').textContent = m ? m.unit : '';
+    setUnitPicker(line, m);
     const cost = line.querySelector('[data-k="cost"]');
     if (m && !cost.value) { const c = m.latestCost || m.pricingCost; if (c) cost.value = +c.toFixed(2); }
     if (m && m.supplier && !f('supplier').value) f('supplier').value = m.supplier;
@@ -3099,7 +3169,16 @@ function openReceive({ materialId, poId } = {}) {
     $$('[data-line]', box).forEach(l => recalc(l, 'cost'));
   } else { addLine(materialId || ''); if (!materialId) addLine(); }
   s.el.querySelector('[data-add]').addEventListener('click', () => { addLine().querySelector('select').focus(); });
-  box.addEventListener('change', e => { if (e.target.matches('[data-k="mat"]')) onMat(e.target.closest('[data-line]')); });
+  box.addEventListener('change', e => {
+    if (e.target.matches('[data-k="mat"]')) onMat(e.target.closest('[data-line]'));
+    if (e.target.matches('[data-k="unit"]')) {
+      // keep the cost meaningful when the unit changes: ₱180 per kg becomes ₱0.18 per g
+      const line = e.target.closest('[data-line]'), m = model.matById[line.querySelector('[data-k="mat"]').value];
+      const nf = unitFactor(m, e.target.value) || 1, of = num(line.dataset.f) || 1, c = line.querySelector('[data-k="cost"]'), cv = num(c.value);
+      if (cv != null) c.value = +(cv * nf / of).toFixed(4);
+      line.dataset.f = String(nf); recalc(line, 'cost');
+    }
+  });
   box.addEventListener('input', e => { const k = e.target.dataset.k; if (k === 'qty' || k === 'cost' || k === 'total') recalc(e.target.closest('[data-line]'), k); });
   box.addEventListener('click', e => { const b = e.target.closest('[data-remove]'); if (b) { b.closest('[data-line]').remove(); if (!box.children.length) addLine(); total(); } });
   s.el.querySelector('[data-save]').addEventListener('click', async () => {
@@ -3113,7 +3192,9 @@ function openReceive({ materialId, poId } = {}) {
       const q = num(qi.value), c = num(ci.value);
       const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0)), b3 = lineErr(ci, c == null || c < 0);
       if (b1 || b2 || b3) { errs.push('Each item needs a material, a quantity above zero and a unit cost'); continue; }
-      lines.push({ m: model.matById[sel.value], q, c, poLineId: l.dataset.poLine && l.dataset.poMat === sel.value ? l.dataset.poLine : null });
+      const lm = model.matById[sel.value], lu = lineUnit(l, lm), lf = unitFactor(lm, lu);
+      if (!(lf > 0)) { errs.push(`Can't convert ${lu} to ${lm.unit} for ${lm.name}`); continue; }
+      lines.push({ m: lm, q: q6(q * lf), c: +(c / lf).toFixed(6), entered: nu(lu) !== nu(lm.unit) ? { qty: q, unit: lu, unitCost: c } : null, poLineId: l.dataset.poLine && l.dataset.poMat === sel.value ? l.dataset.poLine : null });
     }
     if (!lines.length && !errs.length) errs.push('Add at least one item');
     if (errs.length) { err.hidden = false; err.textContent = [...new Set(errs)].join('. ') + '.'; return; }
@@ -3121,12 +3202,12 @@ function openReceive({ materialId, poId } = {}) {
     const common = { date, supplier, invoice: f('invoice').value.trim(), staff: f('staff').value, quality: num(f('quality').value), leadTime: num(f('leadTime').value), remarks: f('remarks').value.trim() };
     const at = new Date().toISOString();
     const poRef = po ? { poId: po.id, poNumber: po.number } : {};
-    await addEntries(lines.map(({ m, q, c, poLineId }) => ({ id: uid('e'), type: 'purchase', materialId: m.id, qty: q, unitCost: c, unit: m.unit, ...common, ...(po && poLineId ? { ...poRef, poLineId } : {}), by: ME.id || null, at })));
+    await addEntries(lines.map(({ m, q, c, poLineId, entered }) => ({ id: uid('e'), type: 'purchase', materialId: m.id, qty: q, unitCost: c, unit: m.unit, ...(entered ? { entered } : {}), ...common, ...(po && poLineId ? { ...poRef, poLineId } : {}), by: ME.id || null, at })));
     if (po && po.status === 'draft' && view.pos[po.id]) await saveDoc('pos', po.id, { ...clone(view.pos[po.id]), status: 'sent' }, view.pos[po.id]);
     if (supplier && !model.suppliers.some(x => x.name.trim().toLowerCase() === supplier.toLowerCase())) {
       await saveDoc('suppliers', 's-' + slug(supplier) + '-' + uid().slice(-4), { name: supplier, category: lines[0].m.category || '', leadTime: common.leadTime }, null);
     }
-    toast(lines.length === 1 ? `Received ${qty(lines[0].q)} ${lines[0].m.unit} of ${lines[0].m.name}` : `Delivery saved: ${lines.length} items`);
+    toast(lines.length === 1 ? `Received ${fq(lines[0].q)} ${lines[0].m.unit} of ${lines[0].m.name}` : `Delivery saved: ${lines.length} items`);
     s.close();
   });
 }
@@ -3162,7 +3243,7 @@ function openIssue({ materialId, recipeId } = {}) {
     const div = document.createElement('div');
     div.className = 'line iss'; div.dataset.line = '';
     div.innerHTML = `<label class="f f-mat"><span class="lbl">Item</span><select data-k="mat">${matOptions(mid)}</select></label>
-      <label class="f f-qty"><span class="lbl">Quantity</span><span class="unitbox"><input inputmode="decimal" data-k="qty" placeholder="0" value="${esc(q)}"><span data-unit>${esc(unitOf(mid))}</span></span></label>
+      <label class="f f-qty"><span class="lbl">Quantity</span><span class="unitbox"><input inputmode="decimal" data-k="qty" placeholder="0" value="${esc(q)}"><span data-unitwrap></span></span></label>
       <div class="hint" data-onhand></div>
       <button type="button" class="icon-btn" data-remove aria-label="Remove item">${ICON.trash}</button>`;
     box.appendChild(div); hint(div);
@@ -3170,15 +3251,15 @@ function openIssue({ materialId, recipeId } = {}) {
   }
   function hint(line) {
     const m = model.matById[line.querySelector('[data-k="mat"]').value];
-    line.querySelector('[data-unit]').textContent = m ? m.unit : '';
+    setUnitPicker(line, m);
     const h = line.querySelector('[data-onhand]');
-    const q = num(line.querySelector('[data-k="qty"]').value) || 0;
+    const q = (num(line.querySelector('[data-k="qty"]').value) || 0) * (m ? unitFactor(m, lineUnit(line, m)) || 1 : 1);
     if (!m) { h.textContent = ''; h.classList.remove('bad'); }
-    else { const over = q > m.onHand + 1e-9; h.textContent = `${over ? 'More than' : ''} ${qty(m.onHand)} ${m.unit} on hand`.trim(); h.classList.toggle('bad', over); if (over) h.textContent = `More than the ${qty(m.onHand)} ${m.unit} on hand`; }
+    else { const over = q > m.onHand + 1e-9; h.textContent = `${fq(m.onHand)} ${m.unit} on hand`; h.classList.toggle('bad', over); if (over) h.textContent = `More than the ${fq(m.onHand)} ${m.unit} on hand`; }
     total();
   }
   function total() {
-    let sum = 0; $$('[data-line]', box).forEach(l => { const m = model.matById[l.querySelector('[data-k="mat"]').value]; if (m) sum += (num(l.querySelector('[data-k="qty"]').value) || 0) * (m.bookCost || 0); });
+    let sum = 0; $$('[data-line]', box).forEach(l => { const m = model.matById[l.querySelector('[data-k="mat"]').value]; if (m) sum += (num(l.querySelector('[data-k="qty"]').value) || 0) * (unitFactor(m, lineUnit(l, m)) || 1) * (m.bookCost || 0); });
     s.el.querySelector('[data-total]').textContent = money(sum);
   }
   function fill() {
@@ -3205,6 +3286,7 @@ function openIssue({ materialId, recipeId } = {}) {
   s.el.querySelector('[data-add]').addEventListener('click', () => { addLine().querySelector('select').focus(); });
   box.addEventListener('change', e => { if (e.target.matches('[data-k="mat"]')) hint(e.target.closest('[data-line]')); });
   box.addEventListener('input', e => { if (e.target.dataset.k === 'qty') hint(e.target.closest('[data-line]')); });
+  box.addEventListener('change', e => { if (e.target.matches('[data-k="unit"]')) hint(e.target.closest('[data-line]')); });
   box.addEventListener('click', e => { const b = e.target.closest('[data-remove]'); if (b) { b.closest('[data-line]').remove(); if (!box.children.length) addLine(); total(); } });
   s.el.querySelector('[data-save]').addEventListener('click', async () => {
     const err = s.el.querySelector('[data-err]'); const errs = [];
@@ -3217,15 +3299,17 @@ function openIssue({ materialId, recipeId } = {}) {
       const q = num(qi.value);
       const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0));
       if (b1 || b2) { errs.push('Each item needs a material and a quantity above zero'); continue; }
-      lines.push({ m: model.matById[sel.value], q });
+      const lm = model.matById[sel.value], lu = lineUnit(l, lm), lf = unitFactor(lm, lu);
+      if (!(lf > 0)) { errs.push(`Can't convert ${lu} to ${lm.unit} for ${lm.name}`); continue; }
+      lines.push({ m: lm, q: q6(q * lf), entered: nu(lu) !== nu(lm.unit) ? { qty: q, unit: lu } : null });
     }
     if (!lines.length && !errs.length) errs.push('Add at least one item');
     if (errs.length) { err.hidden = false; err.textContent = [...new Set(errs)].join('. ') + '.'; return; }
     const at = new Date().toISOString();
     const purpose = f('purpose').value.trim();
     const rid = fromRecipe && model.recById[fromRecipe] && model.recById[fromRecipe].name === purpose ? fromRecipe : null;
-    await addEntries(lines.map(({ m, q }) => ({ id: uid('e'), type: 'issue', date, materialId: m.id, qty: q, unitCost: m.bookCost || 0, unit: m.unit, staff: f('staff').value, purpose, recipeId: rid, remarks: f('remarks').value.trim(), by: ME.id || null, at })));
-    toast(lines.length === 1 ? `Issued ${qty(lines[0].q)} ${lines[0].m.unit} of ${lines[0].m.name}` : `Issue saved: ${lines.length} items`);
+    await addEntries(lines.map(({ m, q, entered }) => ({ id: uid('e'), type: 'issue', date, materialId: m.id, qty: q, unitCost: m.bookCost || 0, unit: m.unit, ...(entered ? { entered } : {}), staff: f('staff').value, purpose, recipeId: rid, remarks: f('remarks').value.trim(), by: ME.id || null, at })));
+    toast(lines.length === 1 ? `Issued ${fq(lines[0].q)} ${lines[0].m.unit} of ${lines[0].m.name}` : `Issue saved: ${lines.length} items`);
     s.close();
   });
 }
@@ -3376,7 +3460,7 @@ function editRecipe(id, dupId, opts = {}) {
     const div = document.createElement('div');
     div.className = 'line ing'; div.dataset.line = '';
     const mu = unitOf(l.materialId);
-    div.innerHTML = `<label class="f f-mat"><span class="lbl">Ingredient</span><select data-k="mat">${matOptions(l.materialId || '')}</select></label>
+    div.innerHTML = `<label class="f f-mat"><span class="lbl">Ingredient</span><select data-k="mat">${matOptions(l.materialId || '', { recipe: 1 })}</select></label>
       <label class="f f-qty"><span class="lbl">Batch qty</span><input inputmode="decimal" data-k="qty" value="${esc(numV(l.qty))}" placeholder="0"></label>
       <label class="f"><span class="lbl">Unit</span><select data-k="unit">${options(unitList(), l.unit || mu || 'kg')}</select></label>
       <label class="f f-note"><span class="lbl">Note</span><input type="text" data-k="note" value="${esc(l.note || '')}" placeholder="Optional"></label>
@@ -3580,8 +3664,8 @@ async function exportXlsx() {
   const X = window.XLSX; const S = model.S; const r2 = v => (v == null || !Number.isFinite(v) ? null : Math.round(v * 10000) / 10000);
   const wb = X.utils.book_new();
   const add = (name, rows) => X.utils.book_append_sheet(wb, X.utils.json_to_sheet(rows.length ? rows : [{ Note: 'No data' }]), name);
-  add('Stock', model.mats.map(m => ({ Material: m.name, Category: m.category, Unit: m.unit, 'On hand': r2(m.onHand), Minimum: num(m.minStock) || 0, Status: MAT_STATUS[m.status][0], 'Weighted avg cost': r2(m.wac), 'Stock value': r2(m.value), 'Latest purchase cost': r2(m.latestCost), 'Latest purchase date': m.latestDate, 'Previous cost': r2(m.prevCost), 'Latest change %': r2(m.change), 'Current quote': num(m.quote) || null, 'Price for recipes': r2(m.pricingCost), 'Price source': m.priceSource, 'Preferred supplier': m.supplier || '' })));
-  add('Movements', model.log.map(e => {
+  add('Stock', model.mats.map(m => ({ Material: m.name, SKU: m.sku || '', Category: m.category, Unit: m.unit, 'Purchase unit': m.buyUnit && num(m.buyFactor) > 0 ? `1 ${m.buyUnit} = ${q6(num(m.buyFactor))} ${m.unit}` : '', 'Recipe ingredient': m.useInRecipes === false ? 'No' : 'Yes', 'Sold directly': m.sellable ? 'Yes' : 'No', 'Selling step': m.sellable ? (num(m.sellStep) || 1) : '', 'Purchase tax class': (PURCHASE_TAX.find(x => x[0] === (m.purchaseTax || '')) || PURCHASE_TAX[0])[1], 'On hand': q6(m.onHand), Minimum: num(m.minStock) || 0, Status: MAT_STATUS[m.status][0], 'Weighted avg cost': r2(m.wac), 'Stock value': r2(m.value), 'Latest purchase cost': r2(m.latestCost), 'Latest purchase date': m.latestDate, 'Previous cost': r2(m.prevCost), 'Latest change %': r2(m.change), 'Current quote': num(m.quote) || null, 'Price for recipes': r2(m.pricingCost), 'Price source': m.priceSource, 'Preferred supplier': m.supplier || '' })));
+  add('Movements', allMoves().map(e => {
     const m = model.matById[e.materialId], rr = e.recipeId ? model.recById[e.recipeId] : null; const q = num(e.qty) || 0;
     const ev = !e.materialId;
     return { Date: e.date, Type: TYPES[e.type], 'Material or recipe': ev ? (rr ? rr.name : '') : (m ? m.name : ''), Unit: ev ? 'servings' : e.unit || (m && m.unit) || '',
@@ -3898,21 +3982,21 @@ function openWaste({ materialId, recipeId, dish } = {}) {
     const div = document.createElement('div');
     div.className = 'line iss'; div.dataset.line = '';
     div.innerHTML = `<label class="f f-mat"><span class="lbl">Item</span><select data-k="mat">${matOptions(mid)}</select></label>
-      <label class="f f-qty"><span class="lbl">Quantity</span><span class="unitbox"><input inputmode="decimal" data-k="qty" placeholder="0"><span data-unit>${esc(unitOf(mid))}</span></span></label>
+      <label class="f f-qty"><span class="lbl">Quantity</span><span class="unitbox"><input inputmode="decimal" data-k="qty" placeholder="0"><span data-unitwrap></span></span></label>
       <div class="hint" data-cost></div>
       <button type="button" class="icon-btn" data-remove aria-label="Remove item">${ICON.trash}</button>`;
     box.appendChild(div); hint(div); return div;
   }
   function hint(line) {
     const m = model.matById[line.querySelector('[data-k="mat"]').value];
-    line.querySelector('[data-unit]').textContent = m ? m.unit : '';
-    const q = num(line.querySelector('[data-k="qty"]').value) || 0;
-    line.querySelector('[data-cost]').textContent = m ? `${money(q * (m.bookCost || 0))}, ${qty(m.onHand)} ${m.unit} on hand` : '';
+    setUnitPicker(line, m);
+    const q = (num(line.querySelector('[data-k="qty"]').value) || 0) * (m ? unitFactor(m, lineUnit(line, m)) || 1 : 1);
+    line.querySelector('[data-cost]').textContent = m ? `${money(q * (m.bookCost || 0))}, ${fq(m.onHand)} ${m.unit} on hand` : '';
     total();
   }
   function total() {
     let sum = 0;
-    if (mode === 'raw') $$('[data-line]', box).forEach(l => { const m = model.matById[l.querySelector('[data-k="mat"]').value]; if (m) sum += (num(l.querySelector('[data-k="qty"]').value) || 0) * (m.bookCost || 0); });
+    if (mode === 'raw') $$('[data-line]', box).forEach(l => { const m = model.matById[l.querySelector('[data-k="mat"]').value]; if (m) sum += (num(l.querySelector('[data-k="qty"]').value) || 0) * (unitFactor(m, lineUnit(l, m)) || 1) * (m.bookCost || 0); });
     else {
       const r = model.recById[f('recipe').value]; const sv = num(f('servings').value) || 0;
       const cps = r ? r.rc.costPerServing || 0 : 0; sum = sv * cps;
@@ -3926,6 +4010,7 @@ function openWaste({ materialId, recipeId, dish } = {}) {
   s.el.querySelector('[data-add]').addEventListener('click', () => { addLine().querySelector('select').focus(); });
   box.addEventListener('change', e => { if (e.target.matches('[data-k="mat"]')) hint(e.target.closest('[data-line]')); });
   box.addEventListener('input', e => { if (e.target.dataset.k === 'qty') hint(e.target.closest('[data-line]')); });
+  box.addEventListener('change', e => { if (e.target.matches('[data-k="unit"]')) hint(e.target.closest('[data-line]')); });
   box.addEventListener('click', e => { const b = e.target.closest('[data-remove]'); if (b) { b.closest('[data-line]').remove(); if (!box.children.length) addLine(); total(); } });
   f('recipe').addEventListener('change', total); f('servings').addEventListener('input', total);
   s.el.querySelector('[data-save]').addEventListener('click', async () => {
@@ -3941,7 +4026,9 @@ function openWaste({ materialId, recipeId, dish } = {}) {
         const q = num(qi.value); const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0));
         if (b1 || b2) { errs.push('Each item needs a material and a quantity above zero'); continue; }
         const m = model.matById[sel.value];
-        entries.push({ id: uid('e'), type: 'waste', materialId: m.id, qty: q, unitCost: m.bookCost || 0, unit: m.unit, ...common });
+        const lu = lineUnit(l, m), lf = unitFactor(m, lu);
+        if (!(lf > 0)) { errs.push(`Can't convert ${lu} to ${m.unit} for ${m.name}`); continue; }
+        entries.push({ id: uid('e'), type: 'waste', materialId: m.id, qty: q6(q * lf), unitCost: m.bookCost || 0, unit: m.unit, ...(nu(lu) !== nu(m.unit) ? { entered: { qty: q, unit: lu } } : {}), ...common });
       }
       if (!entries.length && !errs.length) errs.push('Add at least one item');
     } else {
@@ -4042,7 +4129,7 @@ function openProduction({ recipeId } = {}) {
       const y = batchYield(r, p.b, fin, sv, S); const raw = view.recipes[r.id];
       if (y.spb && raw) await saveDoc('recipes', r.id, { ...clone(raw), actualServings: +y.spb.toFixed(4), ...(y.fpb ? { finishedBatch: +y.fpb.toFixed(4) } : {}) }, raw);
     }
-    toast(`Batch recorded${issue ? `, ${p.lines.length} ingredients issued` : ''}`);
+    toast(`Batch recorded${issue ? `, ${p.lines.length} ingredient${p.lines.length === 1 ? '' : 's'} issued` : ''}`);
     s.close();
   });
 }
@@ -4281,7 +4368,7 @@ function posCatalog(chId) {
   for (const m of model.mats) {
     if (!m.sellable) continue;
     const price = num(m.sellPrice) > 0 ? num(m.sellPrice) : resaleSuggested(m, ch);
-    items.push({ key: `m:${m.id}`, kind: 'resale', m, name: m.name, size: '', category: m.category || 'Other', price, left: Math.floor(m.onHand + 1e-9), unit: m.unit, vat: m.sellVat || 'vatable' });
+    items.push({ key: `m:${m.id}`, kind: 'resale', m, name: m.name, size: '', category: m.category || 'Other', price, left: q3(m.onHand), unit: m.unit, vat: m.sellVat || 'vatable', step: num(m.sellStep) > 0 ? num(m.sellStep) : 1 });
   }
   return { items, ch, ci, byKey: Object.fromEntries(items.map(i => [i.key, i])) };
 }
@@ -4316,15 +4403,19 @@ function chargeLabel(t) {
   if (t.terms === 'partial') return t.amountNow > 0 ? `Charge ${money(t.amountNow)}, ${money(t.balance)} unpaid` : 'Enter the amount paid now';
   return `Charge ${money(t.total)}`;
 }
+const saleUnit = it => it.unit || (it.materialId && model && model.matById[it.materialId] ? model.matById[it.materialId].unit : '');
+const soldQty = it => { const u = it.materialId ? saleUnit(it) : ''; return u ? `${fq(num(it.qty))} ${u}` : qty(num(it.qty)); };
+const perUnit = it => { const u = it.materialId ? saleUnit(it) : ''; return u ? `per ${u}` : 'each'; };
+const stepOf = key => { const it = posCatalog().byKey[key]; return it && it.step > 0 ? it.step : 1; };
 function addToCart(key) {
-  const l = Cart.lines.find(x => x.key === key);
-  if (l) l.qty++; else Cart.lines.push({ key, qty: 1 });
+  const l = Cart.lines.find(x => x.key === key), step = stepOf(key);
+  if (l) l.qty = q3(l.qty + step); else Cart.lines.push({ key, qty: step });
   saveCart(); refreshPos();
   const tile = $(`[data-add="${CSS.escape(key)}"]`); if (tile) { tile.classList.remove('added'); void tile.offsetWidth; tile.classList.add('added'); }
 }
 function changeQty(key, d) {
   const l = Cart.lines.find(x => x.key === key); if (!l) return;
-  l.qty += d; if (l.qty <= 0) Cart.lines = Cart.lines.filter(x => x !== l);
+  l.qty = q3(l.qty + d * stepOf(key)); if (l.qty <= 1e-9) Cart.lines = Cart.lines.filter(x => x !== l);
   saveCart();
 }
 function refreshPos() {
@@ -4381,19 +4472,19 @@ Views.sell = {
       grid.innerHTML = `<div class="prod-grid">${sorted.map(i => prodTile(i, inCart[i.key])).join('')}</div>${unpriced ? `<p class="small faint" style="margin-top:10px">${unpriced} item${unpriced > 1 ? 's have' : ' has'} no price yet. Open the recipe to fill in ingredient prices or enter a menu price.</p>` : ''}`;
     }
     renderCart($('[data-cart]', el), cat);
-    const t = cartTotals(cat); const n = t.lines.reduce((a, l) => a + l.qty, 0);
+    const t = cartTotals(cat); const n = t.lines.reduce((a, l) => a + (Number.isInteger(q3(l.qty)) ? l.qty : 1), 0);
     $('[data-pos-bar]', el).innerHTML = `<button type="button" class="btn" data-open-cart><span>${n ? `View order, ${n} item${n > 1 ? 's' : ''}` : 'View order'}</span><b>${money(t.total)}</b></button>`;
   }
 };
 function prodTile(i, inCart) {
   let stock, cls = '';
   if (i.order) stock = 'Made to order';
-  else if (i.kind === 'resale') { stock = `${qty(i.left)} ${i.unit} left`; cls = i.left <= 0 ? 'bad' : i.left <= 5 ? 'warn' : ''; }
+  else if (i.kind === 'resale') { stock = `${fq(i.left)} ${i.unit} left`; cls = i.left <= 0 ? 'bad' : i.left <= 5 * (i.step || 1) ? 'warn' : ''; }
   else { stock = i.left <= 0 ? 'None cooked' : `${i.left} left`; cls = i.left <= 0 ? 'bad' : i.left <= 3 ? 'warn' : ''; }
   return `<button type="button" class="prod" data-add="${esc(i.key)}" style="--c:${catColor(i.category)}" ${i.price == null ? 'disabled title="No price yet: complete the recipe\u2019s ingredient prices or enter a menu price"' : ''}>
     <span class="prod-name">${esc(i.name)}</span>${i.size ? `<span class="prod-size">${esc(i.size)}</span>` : ''}
-    <span class="prod-price">${i.price != null ? money(i.price, i.price % 1 ? 2 : 0) : 'No price yet'}</span>
-    <span class="prod-stock ${cls}">${esc(stock)}${i.vat && i.vat !== 'vatable' ? `<span class="faint">, ${esc(vatShort(i.vat))}</span>` : ''}</span>${inCart ? `<span class="prod-badge" aria-label="${inCart} in order">${inCart}</span>` : ''}</button>`;
+    <span class="prod-price">${i.price != null ? money(i.price, i.price % 1 ? 2 : 0) + (i.kind === 'resale' ? `<small> / ${esc(i.unit)}</small>` : '') : 'No price yet'}</span>
+    <span class="prod-stock ${cls}">${esc(stock)}${i.vat && i.vat !== 'vatable' ? `<span class="faint">, ${esc(vatShort(i.vat))}</span>` : ''}</span>${inCart ? `<span class="prod-badge" aria-label="${esc(fq(inCart))} in order">${esc(fq(inCart))}</span>` : ''}</button>`;
 }
 function renderCart(root, cat) {
   if (!root) return;
@@ -4405,8 +4496,8 @@ function renderCart(root, cat) {
     <div class="cart-head"><h2>Order</h2><select data-cart-ch aria-label="Sales channel">${S.channels.map(c => `<option value="${esc(c.id)}"${c.id === cat.ch.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
     ${customerRow(cat)}
     <div class="cart-body">${t.lines.length ? `<ul class="cart-lines">${t.lines.map(l => { const it = l.item; const over = it.left != null && l.qty > it.left;
-      return `<li><div class="cl-name"><b>${esc(it.name)}</b>${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="small faint">${money(it.price)} each</div>${over ? `<div class="small st bad">${it.left > 0 ? `Only ${it.left} left` : 'None in stock'}</div>` : ''}</div>
-        <div class="stepper"><button type="button" data-dec="${esc(l.key)}" aria-label="One less ${esc(it.name)}">\u2212</button><span>${l.qty}</span><button type="button" data-inc="${esc(l.key)}" aria-label="One more ${esc(it.name)}">+</button></div>
+      return `<li><div class="cl-name"><b>${esc(it.name)}</b>${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="small faint">${money(it.price)} ${it.kind === 'resale' ? 'per ' + esc(it.unit) : 'each'}</div>${over ? `<div class="small st bad">${it.left > 0 ? `Only ${esc(it.kind === 'resale' ? fq(it.left) + ' ' + it.unit : String(it.left))} left` : 'None in stock'}</div>` : ''}</div>
+        <div class="stepper"><button type="button" data-dec="${esc(l.key)}" aria-label="Less ${esc(it.name)}">\u2212</button><input class="qty-in" inputmode="${it.kind === 'resale' ? 'decimal' : 'numeric'}" data-qty="${esc(l.key)}" value="${it.kind === 'resale' ? esc(fq(l.qty).replace(/,/g, '')) : l.qty}" aria-label="Quantity of ${esc(it.name)}${it.kind === 'resale' ? ' in ' + esc(it.unit) : ''}" autocomplete="off"><button type="button" data-inc="${esc(l.key)}" aria-label="More ${esc(it.name)}">+</button></div>
         <div class="cl-amt">${money(l.qty * it.price)}</div></li>`; }).join('')}</ul>` : `<p class="cart-empty">Tap items on the menu to start an order.</p>`}
       ${Cart.lines.length > t.lines.length ? `<p class="small st warn" style="margin-top:8px">Some items have no price on ${esc(cat.ch.name)} and were left out.</p>` : ''}</div>
     <div class="cart-foot">
@@ -4449,7 +4540,17 @@ function patchCart(root) {
   const bl = $('[data-bal]', root); if (bl) bl.innerHTML = t.amountNow > 0 ? `Unpaid <b>${money(t.balance)}</b>` : '<span class="muted">Enter what\u2019s paid now</span>';
   const bar = $('[data-pos-bar] b'); if (bar) bar.textContent = money(t.total);
 }
+function setTypedQty(key, raw) {
+  const l = Cart.lines.find(x => x.key === key); if (!l) return;
+  const it = posCatalog().byKey[key]; let v = num(raw);
+  if (!(v > 0)) { Cart.lines = Cart.lines.filter(x => x !== l); toast(`${it ? it.name : 'Item'} removed from the order`); }
+  else if (it && it.kind !== 'resale') { const w = Math.max(1, Math.round(v)); if (w !== v) toast('Dishes are sold in whole servings'); l.qty = w; }
+  else l.qty = q3(v);
+  saveCart(); refreshPos();
+}
 function wireCart(root) {
+  root.addEventListener('change', e => { if (e.target.matches('[data-qty]')) setTypedQty(e.target.dataset.qty, e.target.value); });
+  root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-qty]')) { e.preventDefault(); e.target.blur(); } });
   root.addEventListener('click', e => {
     const t = e.target;
     const inc = t.closest('[data-inc]'), dec = t.closest('[data-dec]');
@@ -4507,7 +4608,7 @@ async function charge() {
   const customer = await resolveCustomer(Cart.customer);
   const items = t.lines.map(l => {
     const it = l.item, base = { key: it.key, name: it.name, size: it.size || '', qty: l.qty, price: it.price, vat: l.vt, net: +l.net.toFixed(4), vatAmt: +l.vatAmt.toFixed(4) };
-    if (it.kind === 'resale') { const m = it.m; return { ...base, materialId: m.id, unitCost: m.bookCost || 0, use: [{ m: m.id, q: l.qty, c: m.bookCost || 0 }] }; }
+    if (it.kind === 'resale') { const m = it.m, sq = q3(l.qty); return { ...base, qty: sq, unit: m.unit, materialId: m.id, unitCost: m.bookCost || 0, use: [{ m: m.id, q: sq, c: m.bookCost || 0 }] }; }
     const r = it.r, z = it.z;
     if (it.order) {
       const y = r.rc.yieldUsed || 1;
@@ -4540,7 +4641,7 @@ function receiptHtml(s) {
     <div class="r-biz">${esc(S.businessName || 'Stock & costing')}</div>${S.businessAddress ? `<div class="r-small">${esc(S.businessAddress)}</div>` : ''}
     <div class="r-meta"><b>Order ${esc(s.receipt || '')}</b><br>${esc(fmtDate(s.date))}, ${esc(fmtTime(s.at))}<br>${esc(s.channelName || '')}${s.note ? `<br>${esc(s.note)}` : ''}</div>
     ${hasCustomer(s.customer) ? `<div class="r-cust"><div class="r-lbl">Customer</div>${s.customer.name ? `<b>${esc(s.customer.name)}</b>` : ''}${s.customer.phone ? `<div>${esc(s.customer.phone)}</div>` : ''}${s.customer.address ? `<div class="r-addr">${esc(s.customer.address)}</div>` : ''}</div>` : ''}
-    <table class="r-items">${(s.items || []).map(it => `<tr><td>${qty(num(it.qty))} \u00d7 ${esc(it.name)}${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="r-small">${money(num(it.price))} each${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></td><td class="num">${money(num(it.qty) * num(it.price))}</td></tr>`).join('')}</table>
+    <table class="r-items">${(s.items || []).map(it => `<tr><td>${esc(soldQty(it))} \u00d7 ${esc(it.name)}${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="r-small">${money(num(it.price))} ${esc(perUnit(it))}${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></td><td class="num">${money(num(it.qty) * num(it.price))}</td></tr>`).join('')}</table>
     <div class="r-tot">
       <div class="kv"><span>Subtotal</span><span>${money(num(s.subtotal))}</span></div>
       ${num(s.discount && s.discount.amount) ? `<div class="kv"><span>Discount${s.discount.type === 'senior' ? ' (senior/PWD)' : ''}</span><span>\u2212${money(num(s.discount.amount))}</span></div>` : ''}
@@ -4618,7 +4719,7 @@ function openSalesToday() {
       </dl>
       ${Object.keys(byM).length ? `<div><h3 style="margin-bottom:4px">Collected by payment method</h3>${Object.entries(byM).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span>${money(v)}</span></div>`).join('')}${older > 0.004 ? `<p class="small faint" style="margin-top:6px">Includes ${money(older)} paid today for earlier orders.</p>` : ''}</div>` : ''}`; })()}
       <div><h3 style="margin-bottom:6px">Orders</h3>${list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Order</th><th>Time</th><th>Customer</th><th>Items</th><th class="num">Total</th><th>Paid by</th><th>Status</th></tr></thead><tbody>
-        ${list.map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="nowrap"><b>${esc(s.receipt || '')}</b>${pendingTag('e/' + s.id)}</td><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="small">${hasCustomer(s.customer) ? `${esc(s.customer.name || '')}${s.customer.phone ? `<div class="faint">${esc(s.customer.phone)}</div>` : ''}` : DASH}</td><td class="small">${esc((s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="keep">${stPill(PAY_STATUS, s.payStatus)}</td></tr>`).join('')}
+        ${list.map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="nowrap"><b>${esc(s.receipt || '')}</b>${pendingTag('e/' + s.id)}</td><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="small">${hasCustomer(s.customer) ? `${esc(s.customer.name || '')}${s.customer.phone ? `<div class="faint">${esc(s.customer.phone)}</div>` : ''}` : DASH}</td><td class="small">${esc((s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="keep">${stPill(PAY_STATUS, s.payStatus)}</td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted">${q ? 'No orders match that search.' : 'No sales on this day.'}</p>`}</div>`;
   }
 }
@@ -4676,9 +4777,9 @@ function drawRollSlip(doc, s, W, wmm) {
   }
   for (const it of s.items || []) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(fs(8.5));
-    const name = doc.splitTextToSize(pdfText(`${qty(num(it.qty))} x ${it.name}${it.size ? ' ' + it.size : ''}`), W - 2 * M - amtW);
+    const name = doc.splitTextToSize(pdfText(`${soldQty(it)} x ${it.name}${it.size ? ' ' + it.size : ''}`), W - 2 * M - amtW);
     doc.text(name, M, y); doc.text(pdfText(money(num(it.qty) * num(it.price))), W - M, y, { align: 'right' }); y += name.length * (fs(8.5) + 2);
-    doc.setFontSize(fs(7)); doc.setTextColor(110); doc.text(pdfText(`${money(num(it.price))} each`), M, y); doc.setTextColor(20); y += fs(7) + 5;
+    doc.setFontSize(fs(7)); doc.setTextColor(110); doc.text(pdfText(`${money(num(it.price))} ${perUnit(it)}`), M, y); doc.setTextColor(20); y += fs(7) + 5;
   }
   rule();
   row('Subtotal', money(num(s.subtotal)));
@@ -4727,7 +4828,7 @@ function drawSheetSlip(doc, s, paper) {
   const R = { halign: 'right' };
   doc.autoTable({
     startY: y, head: [['Qty', 'Item', 'Unit price', 'Amount']],
-    body: (s.items || []).map(it => [qty(num(it.qty)), pdfText(it.name + (it.size ? ' (' + it.size + ')' : '')), pdfText(money(num(it.price))), pdfText(money(num(it.qty) * num(it.price)))]),
+    body: (s.items || []).map(it => [soldQty(it), pdfText(it.name + (it.size ? ' (' + it.size + ')' : '')), pdfText(money(num(it.price))), pdfText(money(num(it.qty) * num(it.price)))]),
     margin: { left: M, right: M, top: M, bottom: M + f(24) }, theme: 'grid',
     styles: { font: 'helvetica', fontSize: f(9.5), cellPadding: f(5), lineColor: [210, 216, 219], lineWidth: 0.5, textColor: [25, 35, 42], valign: 'middle' },
     headStyles: { fillColor: [232, 236, 238], textColor: [70, 80, 86], fontStyle: 'bold' },
@@ -5040,7 +5141,7 @@ function openCustomer(id) {
         ${list.length ? `<ul class="hist">${list.map(x => `<li class="${x.void ? 'void' : ''}">
             <button type="button" class="hist-main" data-rcpt="${esc(x.id)}" aria-label="Open order ${esc(x.receipt || '')}">
               <span class="hist-top"><b>${esc(fmtDate(x.date))}</b><span class="faint">${esc(fmtTime(x.at))}, ${esc(x.receipt || '')}, ${esc(x.channelName || '')}</span>${pendingTag('e/' + x.id)}</span>
-              <span class="hist-items">${esc((x.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}${x.void ? ` <span class="st bad">Voided${x.voidReason ? ': ' + esc(x.voidReason) : ''}</span>` : ''}</span>
+              <span class="hist-items">${esc((x.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}${x.void ? ` <span class="st bad">Voided${x.voidReason ? ': ' + esc(x.voidReason) : ''}</span>` : ''}</span>
             </button>
             <span class="hist-amt"><b>${money(num(x.total))}</b><span class="small muted">${esc(x.payment || '')}</span></span>
             <span class="hist-act">${x.void ? '' : `<button type="button" class="btn ghost sm" data-repeat="${esc(x.id)}" data-write>Repeat</button>`}</span>
@@ -5092,7 +5193,7 @@ async function pdfCustomerHistory(id, period) {
   if (c.address) pdfFields(ctx, [['Address', c.address.replace(/\n/g, ', ')]], 1);
   const R = { halign: 'right' };
   pdfTable(ctx, ['Date', 'Order', 'Items', 'Paid by', 'Total'],
-    list.map(x => [fmtDate(x.date), x.receipt || '', (x.items || []).map(it => `${qty(num(it.qty))} x ${it.name}${it.size ? ' ' + it.size : ''} @ ${money(num(it.price))}`).join('\n') + (num(x.discount && x.discount.amount) ? `\nDiscount -${money(num(x.discount.amount))}` : ''), x.payment || '', money(num(x.total))]),
+    list.map(x => [fmtDate(x.date), x.receipt || '', (x.items || []).map(it => `${soldQty(it)} x ${it.name}${it.size ? ' ' + it.size : ''} @ ${money(num(it.price))}`).join('\n') + (num(x.discount && x.discount.amount) ? `\nDiscount -${money(num(x.discount.amount))}` : ''), x.payment || '', money(num(x.total))]),
     { rowH: 18, columnStyles: { 0: { cellWidth: 72 }, 1: { cellWidth: 78 }, 3: { cellWidth: 70 }, 4: { cellWidth: 70, halign: 'right' } }, foot: ['', '', '', { content: 'Total', styles: R }, { content: money(list.reduce((a, x) => a + (num(x.total) || 0), 0)), styles: R }] });
   if (c.favorites.length) { pdfHeading(ctx, 'Most ordered'); pdfTable(ctx, ['Item', 'Quantity', 'Spent'], c.favorites.slice(0, 8).map(x => [x.name + (x.size ? ' ' + x.size : ''), qty(x.qty), money(x.spent)]), { columnStyles: { 1: { cellWidth: 70, halign: 'right' }, 2: { cellWidth: 90, halign: 'right' } } }); }
   await pdfFinish(ctx, `purchase-history-${slug(c.name || c.phone || 'customer')}-${today()}.pdf`);
@@ -5196,7 +5297,7 @@ function srAnalyze(start, end, buckets) {
       const exV = it.net != null ? net - (num(it.vatAmt) || 0) : net * (1 - vatShare);
       cost += c; A.units += q;
       const k = it.key || it.name + '|' + (it.size || ''); const cat = itemCategory(it);
-      const x = A.items[k] || (A.items[k] = { key: k, name: it.name, size: it.size || '', cat, recipeId: it.recipeId, sizeId: it.sizeId, materialId: it.materialId, qty: 0, net: 0, exVat: 0, cost: 0, orders: 0 });
+      const x = A.items[k] || (A.items[k] = { key: k, name: it.name, size: it.size || '', cat, recipeId: it.recipeId, sizeId: it.sizeId, materialId: it.materialId, unit: it.materialId ? saleUnit(it) : '', qty: 0, net: 0, exVat: 0, cost: 0, orders: 0 });
       x.qty += q; x.net += net; x.exVat += exV; x.cost += c; x.orders++;
       const y = A.cats[cat] || (A.cats[cat] = { qty: 0, net: 0, exVat: 0, cost: 0 }); y.qty += q; y.net += net; y.exVat += exV; y.cost += c;
     }
@@ -5386,7 +5487,7 @@ Views.reports = {
         ${items.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="num w-min">#</th><th class="sticky">Item</th><th>Category</th><th class="num">Qty sold</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Share</th><th class="num">Gross profit</th><th class="num">Margin</th>${hc ? '<th class="num">Qty vs before</th>' : ''}</tr></thead><tbody>
           ${shownItems.map((x, i) => { const open = x.recipeId && model.recById[x.recipeId] ? `data-open="recipe" data-id="${esc(x.recipeId)}" data-size="${esc(x.sizeId || 'base')}"` : x.materialId && model.matById[x.materialId] ? `data-open="mat" data-id="${esc(x.materialId)}"` : '';
             const dq = x.prevQty != null ? chg2(x.qty, x.prevQty) : null;
-            return `<tr ${open}><td class="num faint">${i + 1}</td><td class="sticky"><span class="name">${esc(x.name)}</span>${x.size ? ` <span class="muted">${esc(x.size)}</span>` : ''}</td><td>${catChip(x.cat)}</td><td class="num">${qty(x.qty)}</td><td class="num">${x.orders}</td><td class="num"><b>${money(x.net)}</b></td><td class="num">${pct(A.net ? x.net / A.net : 0)}</td><td class="num">${money(x.gp)}</td><td class="num">${P2(x.margin)}</td>
+            return `<tr ${open}><td class="num faint">${i + 1}</td><td class="sticky"><span class="name">${esc(x.name)}</span>${x.size ? ` <span class="muted">${esc(x.size)}</span>` : ''}</td><td>${catChip(x.cat)}</td><td class="num">${x.unit ? `${fq(x.qty)} <span class="faint">${esc(x.unit)}</span>` : qty(x.qty)}</td><td class="num">${x.orders}</td><td class="num"><b>${money(x.net)}</b></td><td class="num">${pct(A.net ? x.net / A.net : 0)}</td><td class="num">${money(x.gp)}</td><td class="num">${P2(x.margin)}</td>
               ${hc ? `<td class="num">${x.prevQty ? `<span class="${dq > 0 ? 'chg-down' : dq < 0 ? 'chg-up' : ''}">${dq > 0 ? '+' : ''}${pct(dq, 0)}</span> <span class="faint small">from ${qty(x.prevQty)}</span>` : '<span class="small">New</span>'}</td>` : ''}</tr>`; }).join('')}
         </tbody></table></div>${items.length > 15 ? `<div class="more"><button class="btn ghost sm" data-allitems>${ui.sr.allItems ? 'Show top 15' : `Show all ${items.length} items`}</button></div>` : ''}` : '<div class="panel empty" style="padding:20px"><p>No items sold in this period.</p></div>'}
         ${slow.length ? `<p class="small muted" style="margin-top:10px"><b>Not sold this ${P.unit}:</b> ${slow.slice(0, 30).map(esc).join(', ')}${slow.length > 30 ? `, and ${slow.length - 30} more` : ''}.</p>` : ''}
@@ -5423,7 +5524,7 @@ Views.reports = {
       </div>
       ${P.gran === 'day' ? `<section class="section"><div class="panel-head"><h2>Orders</h2><span class="small muted">${A.orders} order${A.orders === 1 ? '' : 's'}</span></div>
         ${A.orders || A.voids.count ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th class="sticky">Order</th><th>Customer</th><th>Items</th><th class="num">Total</th><th>Paid by</th><th>Cashier</th></tr></thead><tbody>
-          ${model.sales.filter(s => s.date === P.start).slice().reverse().map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="sticky nowrap"><b>${esc(s.receipt || '')}</b></td><td class="small">${hasCustomer(s.customer) ? esc(s.customer.name || s.customer.phone) : DASH}</td><td class="small">${esc((s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="small keep">${who(s.by)}</td></tr>`).join('')}
+          ${model.sales.filter(s => s.date === P.start).slice().reverse().map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="sticky nowrap"><b>${esc(s.receipt || '')}</b></td><td class="small">${hasCustomer(s.customer) ? esc(s.customer.name || s.customer.phone) : DASH}</td><td class="small">${esc((s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="small keep">${who(s.by)}</td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted">No orders on this day.</p>'}</section>` : ''}`;
     resolveNames(body);
   }
@@ -5479,7 +5580,7 @@ async function exportSalesReport() {
   add('Customers', A.cust.rows.map(r => ({ Customer: r.c.name || '', 'Contact number': r.c.phone || '', Address: r.c.address || '', Orders: r.orders, Spent: r2(r.net), 'Average order': r2(r.avg), 'Last order': r.last, Type: r.isNew ? 'New' : 'Returning', 'Customer since': r.c.first || '', 'Lifetime orders': r.c.orders, 'Lifetime spent': r2(r.c.spent), 'Usually buys': favText(r.c) })));
   const hourRows = DOW_LONG.map((dn, d) => { const row = { Day: dn }; for (let h = 0; h < 24; h++) { const v = A.heat[d + '-' + h]; row[hourLabel(h)] = v ? r2(v.net) : 0; } return row; });
   add('Day and hour', hourRows);
-  add('Orders', model.sales.filter(s => s.date >= P.start && s.date <= P.end).map(s => ({ Date: s.date, Time: fmtTime(s.at), Order: s.receipt || '', Channel: s.channelName || '', Customer: (s.customer && s.customer.name) || '', 'Contact number': (s.customer && s.customer.phone) || '', Address: (s.customer && s.customer.address) || '', Items: (s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), Subtotal: num(s.subtotal), Discount: num(s.discount && s.discount.amount) || 0, Total: num(s.total), 'VATable sales': r2(saleVat(s).vatable), VAT: num(s.vat), 'VAT-exempt sales': r2(saleVat(s).exempt), 'Zero-rated sales': r2(saleVat(s).zero), 'Cost of goods': r2((s.items || []).reduce((a, it) => a + (num(it.qty) || 0) * (num(it.unitCost) || 0), 0)), Payment: s.payment || '', Paid: s.void ? null : r2(s.paid), Balance: s.void ? null : r2(s.balance), Status: PAY_STATUS[s.payStatus] ? PAY_STATUS[s.payStatus][0] : '', Due: s.due || '', Cashier: names[s.by || ''] || '', Voided: s.void ? 'Yes' : '', 'Void reason': s.voidReason || '' })));
+  add('Orders', model.sales.filter(s => s.date >= P.start && s.date <= P.end).map(s => ({ Date: s.date, Time: fmtTime(s.at), Order: s.receipt || '', Channel: s.channelName || '', Customer: (s.customer && s.customer.name) || '', 'Contact number': (s.customer && s.customer.phone) || '', Address: (s.customer && s.customer.address) || '', Items: (s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), Subtotal: num(s.subtotal), Discount: num(s.discount && s.discount.amount) || 0, Total: num(s.total), 'VATable sales': r2(saleVat(s).vatable), VAT: num(s.vat), 'VAT-exempt sales': r2(saleVat(s).exempt), 'Zero-rated sales': r2(saleVat(s).zero), 'Cost of goods': r2((s.items || []).reduce((a, it) => a + (num(it.qty) || 0) * (num(it.unitCost) || 0), 0)), Payment: s.payment || '', Paid: s.void ? null : r2(s.paid), Balance: s.void ? null : r2(s.balance), Status: PAY_STATUS[s.payStatus] ? PAY_STATUS[s.payStatus][0] : '', Due: s.due || '', Cashier: names[s.by || ''] || '', Voided: s.void ? 'Yes' : '', 'Void reason': s.voidReason || '' })));
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array' });
   await saveFile(`sales-report-${slug(P.label)}.xlsx`, new Blob([buf]));
 }
@@ -5509,7 +5610,7 @@ async function pdfSalesReport() {
   if (A.cust.rows.length) { pdfHeading(ctx, 'Top customers'); pdfTable(ctx, ['Customer', 'Contact', 'Orders', 'Spent', 'Last order'], A.cust.rows.slice(0, 10).map(r => [(r.c.name || '') + (r.isNew ? ' (new)' : ''), r.c.phone || '', r.orders, money(r.net), fmtDate(r.last)]), { rowH: 15, columnStyles: { 2: R, 3: R } }); }
   if (P.gran === 'day') {
     const orders = model.sales.filter(s => s.date === P.start);
-    if (orders.length) { pdfHeading(ctx, 'Orders'); pdfTable(ctx, ['Time', 'Order', 'Customer', 'Items', 'Paid by', 'Total'], orders.map(s => [fmtTime(s.at), (s.receipt || '') + (s.void ? ' VOID' : ''), (s.customer && (s.customer.name || s.customer.phone)) || '', (s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), s.payment || '', money(num(s.total))]), { rowH: 15, columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 70 }, 5: { halign: 'right', cellWidth: 70 } } }); }
+    if (orders.length) { pdfHeading(ctx, 'Orders'); pdfTable(ctx, ['Time', 'Order', 'Customer', 'Items', 'Paid by', 'Total'], orders.map(s => [fmtTime(s.at), (s.receipt || '') + (s.void ? ' VOID' : ''), (s.customer && (s.customer.name || s.customer.phone)) || '', (s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), s.payment || '', money(num(s.total))]), { rowH: 15, columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 70 }, 5: { halign: 'right', cellWidth: 70 } } }); }
   }
   if (A.voids.count) pdfParagraph(ctx, `${A.voids.count} voided order${A.voids.count > 1 ? 's' : ''} totalling ${money(A.voids.amount)} are not included above.`);
   await pdfFinish(ctx, `sales-report-${slug(P.label)}.pdf`);
@@ -5898,7 +5999,7 @@ function slipBodyHtml(s, label) {
     <div class="c b lg">${esc(S.businessName || 'Stock & costing')}</div>${S.businessAddress ? `<div class="c sm">${esc(S.businessAddress)}</div>` : ''}
     <hr><div class="c b">Order ${esc(s.receipt || '')}</div><div class="c">${esc(fmtDate(s.date))}, ${esc(fmtTime(s.at))}</div><div class="c">${esc(s.channelName || '')}</div>${s.note ? `<div class="c">${esc(s.note)}</div>` : ''}${s.void ? '<div class="c b xl">VOIDED</div>' : ''}
     ${cu ? `<hr><div class="sm">${isDeliveryName(s) ? 'Deliver to' : 'Customer'}</div>${cu.name ? `<div class="b">${esc(cu.name)}</div>` : ''}${cu.phone ? `<div>${esc(cu.phone)}</div>` : ''}${cu.address ? `<div class="pre">${esc(cu.address)}</div>` : ''}` : ''}
-    <hr>${(s.items || []).map(it => `<div class="it"><div class="row"><span>${esc(qty(num(it.qty)))} x ${esc(it.name)}${it.size ? ' ' + esc(it.size) : ''}</span><span>${esc(money(num(it.qty) * num(it.price)))}</span></div><div class="sm">${esc(money(num(it.price)))} each${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></div>`).join('')}
+    <hr>${(s.items || []).map(it => `<div class="it"><div class="row"><span>${esc(soldQty(it))} x ${esc(it.name)}${it.size ? ' ' + esc(it.size) : ''}</span><span>${esc(money(num(it.qty) * num(it.price)))}</span></div><div class="sm">${esc(money(num(it.price)))} ${esc(perUnit(it))}${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></div>`).join('')}
     <hr>${slipTotalsPrint(s)}<hr>${slipPayPrint(s)}${slipFootPrint()}`;
 }
 const isDeliveryName = s => /deliver/i.test(s.channelName || '');
@@ -5909,7 +6010,7 @@ function sheetSlipHtml(s, label) {
     <div class="cols"><div>${cu ? `<div class="lbl">${isDeliveryName(s) ? 'Deliver to' : 'Customer'}</div>${cu.name ? `<div class="b">${esc(cu.name)}</div>` : ''}${cu.phone ? `<div>${esc(cu.phone)}</div>` : ''}${cu.address ? `<div class="pre">${esc(cu.address)}</div>` : ''}` : ''}</div>
       <div>${s.note ? `<div class="lbl">Note</div><div>${esc(s.note)}</div>` : ''}${s.balance > 0.004 && !s.void ? `<div class="lbl" style="margin-top:2mm">Payment</div><div class="b">${s.payStatus === 'partial' ? 'Partly paid' : 'Unpaid'}${s.due ? ', due ' + esc(fmtDate(s.due)) : ''}</div>` : ''}</div></div>
     <table><thead><tr><th class="n">Qty</th><th>Item</th><th class="n">Unit price</th><th class="n">Amount</th></tr></thead><tbody>
-      ${(s.items || []).map(it => `<tr><td class="n">${esc(qty(num(it.qty)))}</td><td>${esc(it.name)}${it.size ? ' (' + esc(it.size) + ')' : ''}${it.vat && it.vat !== 'vatable' ? ` <span class="sm">${vatShort(it.vat)}</span>` : ''}</td><td class="n">${esc(money(num(it.price)))}</td><td class="n">${esc(money(num(it.qty) * num(it.price)))}</td></tr>`).join('')}
+      ${(s.items || []).map(it => `<tr><td class="n">${esc(soldQty(it))}</td><td>${esc(it.name)}${it.size ? ' (' + esc(it.size) + ')' : ''}${it.vat && it.vat !== 'vatable' ? ` <span class="sm">${vatShort(it.vat)}</span>` : ''}</td><td class="n">${esc(money(num(it.price)))}</td><td class="n">${esc(money(num(it.qty) * num(it.price)))}</td></tr>`).join('')}
     </tbody></table>
     <div class="tot">${slipTotalsPrint(s)}<hr>${slipPayPrint(s)}</div><div class="foot">${slipFootPrint()}</div>`;
 }
@@ -5918,7 +6019,7 @@ function kitchenBodyHtml(s) {
   const short = String(s.receipt || '').split('-').pop();
   return `<div class="c b">Kitchen ticket</div><div class="c b xxl">#${esc(short)}</div><div class="c">Order ${esc(s.receipt || '')}, ${esc(fmtTime(s.at))}</div><div class="c b lg">${esc(s.channelName || '')}</div>
     ${cu && (cu.name || cu.phone) ? `<div class="c">${esc(cu.name || cu.phone)}</div>` : ''}${sch && sch.time ? `<div class="c b">Scheduled for ${esc(fmtClock(sch.time))}</div>` : ''}${s.note ? `<div class="c b">Note: ${esc(s.note)}</div>` : ''}${s.void ? '<div class="c b xl">VOIDED</div>' : ''}
-    <hr>${(s.items || []).map(it => `<div class="ki"><span class="q">${esc(qty(num(it.qty)))}</span><span>${esc(it.name)}${it.size ? ` <u>${esc(it.size)}</u>` : ''}</span></div>`).join('')}
+    <hr>${(s.items || []).map(it => `<div class="ki"><span class="q">${esc(soldQty(it))}</span><span>${esc(it.name)}${it.size ? ` <u>${esc(it.size)}</u>` : ''}</span></div>`).join('')}
     <hr><div class="c sm">Printed ${esc(new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}</div>`;
 }
 async function printDocs(id, opts = {}) {

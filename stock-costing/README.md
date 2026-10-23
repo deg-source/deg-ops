@@ -67,6 +67,16 @@ Entries made in the Claude version show the person as "Someone", because the sig
 Sign in once while connected. After that, the app opens from the home screen even without internet.
 
 
+
+## Units, SKUs and exact quantities
+
+- **Exact quantities:** quantities are stored to 6 decimal places and shown to 3, like 5.780 kg, so totals never drift. This applies to receiving, issuing, counting, waste and the Sell screen.
+- **Other units:** when receiving, issuing or logging waste, pick another unit next to the quantity. Grams and kilos (and millilitres and litres) convert automatically. Stock is always kept in the item's stock unit, and the movement history shows what was typed, like "Entered as 2 sack".
+- **Purchase units:** an item can also be bought in a purchase unit, like a sack of 25 kg. Set this in **Also buys in** when editing the item.
+- **Item settings:** each item can have a **SKU**, a **purchase tax class**, whether it **can be used as a recipe ingredient**, and whether it's **sold directly**.
+- **Selling steps:** items sold directly have a selling step, like 0.250 kg. One tap adds one step, and cashiers can also type any amount in the order.
+- **Movement history:** **Movements** shows stock sold through the Sell screen alongside deliveries, issues, batches and waste, each linked to its order.
+
 ## Printing order slips
 
 - On each device, go to **Setup → Order slips and printing**. Choose the paper size there, and decide whether to print automatically after each sale: the order slip, a kitchen ticket, or both. You can also set 1 to 3 copies (customer, store and delivery).
