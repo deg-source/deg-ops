@@ -66,6 +66,16 @@ Entries made in the Claude version show the person as "Someone", because the sig
 
 Sign in once while connected. After that, the app opens from the home screen even without internet.
 
+
+## Printing order slips
+
+- On each device, go to **Setup → Order slips and printing**. Choose the paper size there, and decide whether to print automatically after each sale: the order slip, a kitchen ticket, or both. You can also set 1 to 3 copies (customer, store and delivery).
+- **Print** opens your device's print dialog; pick your printer there. Browsers always show this dialog first, for security.
+- **Thermal printers on a computer:** install the printer's driver and make it the default printer. In the print dialog, choose the 80 mm or 58 mm paper and set margins to **None**. Each slip is sized to its content, so no blank paper is fed.
+- **Skipping the dialog on a counter computer:** start Chrome with the `--kiosk-printing` option, so slips go straight to the default printer.
+- **Android:** Wi-Fi printers usually work directly. For Bluetooth thermal printers, install the printer's print service app from the Play Store, then choose it in the print dialog.
+- **iPhone and iPad:** AirPrint printers work directly. Most Bluetooth thermal printers don't support AirPrint; use **PDF** and print from the printer's own app instead.
+
 ---
 
 ## Good to know
