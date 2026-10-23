@@ -67,18 +67,6 @@ Entries made in the Claude version show the person as "Someone", because the sig
 Sign in once while connected. After that, the app opens from the home screen even without internet.
 
 
-
-## Raw items and finished goods
-
-Every stock item is one of two types, chosen when you add it:
-
-- **Raw item:** quantities up to 3 decimals, like 1.060 kg. Use this for meat, vegetables, fruit and other ingredients.
-- **Finished good:** whole numbers only, like 12 pcs. Use this for dry goods and ready-made items you sell as they are.
-
-The type controls quantity entry everywhere: receiving, issuing, counting, waste, purchase orders and the Sell screen. Raw items you sell open a quantity box, with 0.250, 0.500 and 1.000 shortcuts. Finished goods use the minus and plus buttons.
-
-Items added before this update were sorted automatically: items sold as they are became finished goods, and everything else became a raw item. To change one, open it under **Stock** and click **Edit**.
-
 ## Printing order slips
 
 - On each device, go to **Setup → Order slips and printing**. Choose the paper size there, and decide whether to print automatically after each sale: the order slip, a kitchen ticket, or both. You can also set 1 to 3 copies (customer, store and delivery).
