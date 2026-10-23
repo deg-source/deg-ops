@@ -786,6 +786,19 @@ th.num .th-sort{flex-direction:row}
   #toasts{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
   body:has(.pos-bar) #toasts{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 }
+/* item type choice, quantity box, weighed cart lines */
+.type-pick{border:0;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
+.type-pick legend{font-size:13.5px;font-weight:600;color:var(--ink-2);margin-bottom:6px;padding:0}
+.type-opt{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid var(--rule);border-radius:var(--radius-lg);background:var(--surface-2);cursor:pointer}
+.type-opt:hover{border-color:var(--ink-3)}
+.type-opt:has(input:checked){border-color:var(--acc-line);background:var(--acc-soft)}
+.type-opt input{width:18px;height:18px;margin-top:2px;accent-color:var(--acc);flex:none}
+.type-opt b{display:block;font-size:15px;color:var(--ink)}
+.type-opt small{display:block;margin-top:2px;font-size:13px;color:var(--ink-2);line-height:1.4}
+.stepper.weight button{display:inline-flex;align-items:center;gap:6px;width:auto;min-width:0;padding:0 12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stepper.weight button svg{width:14px;height:14px;opacity:.7}
+.weight-total{font-size:16px;font-variant-numeric:tabular-nums;min-height:24px}
+.prod-price small{font-size:.62em;font-weight:600;color:var(--ink-3);margin-left:2px}
 
 </style>
 <script src="config.js"></script>
@@ -881,6 +894,25 @@ function qty(v, dp = 3) {
   const r = Math.round(v * 10 ** dp) / 10 ** dp;
   return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-US', { maximumFractionDigits: dp });
 }
+/* Item types: raw items take up to 3 decimals (1.060 kg), finished goods take whole numbers (12 pcs) */
+const QTY_TYPES = { raw: ['Raw item', 'Quantities up to 3 decimals, like 1.060 kg. For meat, vegetables, fruit and other ingredients.'], fg: ['Finished good', 'Whole numbers only, like 12 pcs. For dry goods and ready-made items you sell as they are.'] };
+function matType(m) { return m && (m.qtyType === 'raw' || m.qtyType === 'fg') ? m.qtyType : (m && m.sellable ? 'fg' : 'raw'); }
+const roundQ = (t, v) => (t === 'fg' ? Math.round(v) : Math.round(v * 1000) / 1000);
+function qtyProblem(m, q) {
+  if (!(q > 0)) return '';
+  const nm = (m && m.name) || 'This item';
+  if (matType(m) === 'fg' && Math.abs(q - Math.round(q)) > 1e-9) return `${nm} is a finished good, so use a whole number, like ${Math.max(1, Math.round(q))}`;
+  if (matType(m) === 'raw' && Math.abs(q * 1000 - Math.round(q * 1000)) > 1e-6) return `${nm}: use up to 3 decimals, like ${(Math.round(q * 1000) / 1000).toFixed(3)}`;
+  return '';
+}
+function qtyText(t, v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const r = Math.round(v * 1000) / 1000;
+  if (t === 'raw' && !Number.isInteger(r)) return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  return qty(v);
+}
+const mQty = (m, v) => qtyText(matType(m), v);
+function qtyInputMode(input, m) { const t = matType(m); input.setAttribute('inputmode', t === 'fg' ? 'numeric' : 'decimal'); input.setAttribute('placeholder', t === 'fg' ? '0' : '0.000'); input.dataset.qtype = t; }
 const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
 function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'x'; }
 function titleCase(s) { return String(s || '').toLowerCase().replace(/(^|[\s/&(-])([a-z])/g, (m, a, b) => a + b.toUpperCase()); }
@@ -1347,6 +1379,7 @@ function compute(view) {
   const schedules = Object.entries(view.schedules || {}).map(([id, d]) => ({ ...d, id, cust: custById[d.customerId] || null, days: Array.isArray(d.days) ? d.days : [], items: Array.isArray(d.items) ? d.items : [], skips: d.skips || {} }))
     .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')) || String((a.cust && a.cust.name) || '').localeCompare(String((b.cust && b.cust.name) || '')));
   const schedById = {}; for (const x of schedules) schedById[x.id] = x;
+  for (const m of allMats) m.qtyType = matType(m);
   return { S, entries, events, log, allMats, mats, matById, recipes, recById, suppliers, supStats, pos, poById, sales, fgById, customers, custById, schedules, schedById, schedDone, payments, receivables, ar };
 }
 
@@ -1866,6 +1899,7 @@ function sparkline(values) {
    ========================================================= */
 const ui = {
   stock: { q: '', cat: '', status: 'all' },
+  goodsMat: { q: '', status: 'all', sort: 'name', dir: 1, page: 1, size: '' },
   moves: { q: '', type: 'all', from: '', to: '', showVoid: false, limit: 250 },
   forms: { poFilter: 'open' },
   recipes: { q: '', ing: '', cat: '', costing: '', yield: '', control: '' },
@@ -1874,7 +1908,7 @@ const ui = {
 };
 const TABS = [['stock', 'Stock'], ['sell', 'Sell'], ['forms', 'Forms'], ['movements', 'Movements'], ['recipes', 'Recipes'], ['pricing', 'Pricing'], ['reports', 'Reports'], ['setup', 'Setup']];
 const NAV = [
-  { k: 'stock', l: 'Stock', ic: 'navStock', kids: [['stock', 'Raw materials'], ['goods', 'Finished goods']] },
+  { k: 'stock', l: 'Stock', ic: 'navStock', kids: [['stock', 'Raw items'], ['goods', 'Finished goods']] },
   { k: 'sell', l: 'Sell', ic: 'navSell', kids: [['sell', 'Sell'], ['orders', 'Orders'], ['customers', 'Customers'], ['schedules', 'Scheduled']] },
   { k: 'forms', l: 'Forms', ic: 'navForms' },
   { k: 'movements', l: 'Movements', ic: 'navMoves' },
@@ -1885,7 +1919,7 @@ const NAV = [
 ];
 const ROUTE_TAB = { recipe: 'recipes', goods: 'stock', customers: 'sell', schedules: 'sell', orders: 'sell', stockreport: 'reports' };
 const tabOf = name => ROUTE_TAB[name] || name;
-const PAGE_LABEL = { stock: 'Raw materials', goods: 'Finished goods', orders: 'Orders', customers: 'Customers', schedules: 'Scheduled orders', reports: 'Sales', stockreport: 'Inventory' };
+const PAGE_LABEL = { stock: 'Raw items', goods: 'Finished goods', orders: 'Orders', customers: 'Customers', schedules: 'Scheduled orders', reports: 'Sales', stockreport: 'Inventory' };
 const prefGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const prefSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 function navBadges() {
@@ -2050,7 +2084,7 @@ function runAction(a, d) {
     case 'receive': return openReceive({ materialId: d.id });
     case 'issue': return openIssue({ materialId: d.id, recipeId: d.recipe });
     case 'count': return openCount();
-    case 'new-material': return editMaterial(null);
+    case 'new-material': return editMaterial(null, { type: d.type });
     case 'mat-price': { editMaterial(d.id); setTimeout(() => { const q = document.querySelector('.layer:last-child [name="quote"]'); if (q) q.focus(); }, 60); return; }
     case 'new-recipe': return editRecipe(null);
     case 'edit-recipe': return editRecipe(d.id, null, { focus: d.focus });
@@ -2141,9 +2175,9 @@ Views.stock = {
     if (!f.page) f.page = 1;
     const cats = [...new Set([...S.materialCategories, ...model.mats.map(m => m.category || 'Other')])];
     el.innerHTML = `${stockNav('stock')}
-      <div class="head"><div><h1>Raw materials</h1><p class="sub" data-sum></p></div>
+      <div class="head"><div><h1>Raw items</h1><p class="sub" data-sum></p></div>
         <div class="actions" data-write>
-          <button class="btn ghost" data-act="new-material">${ICON.plus}New material</button>
+          <button class="btn ghost" data-act="new-material" data-type="raw">${ICON.plus}New raw item</button>
           <button class="btn ghost" data-act="count">${ICON.count}Count stock</button>
           <button class="btn ghost" data-act="issue">${ICON.issue}Issue to kitchen</button>
           <button class="btn" data-act="receive">${ICON.receive}Receive delivery</button>
@@ -2151,8 +2185,8 @@ Views.stock = {
       <div data-stats></div>
       <div class="dash-grid" data-dash></div>
       <section class="table-card" aria-labelledby="mat-h" style="scroll-margin-top:76px">
-        <div class="tc-head"><h2 id="mat-h">All materials</h2>
-          <div class="search">${ICON.search}<input type="search" placeholder="Search materials or suppliers" aria-label="Search materials or suppliers" data-f="q" value="${esc(f.q)}"></div>
+        <div class="tc-head"><h2 id="mat-h">All raw items</h2>
+          <div class="search">${ICON.search}<input type="search" placeholder="Search items or suppliers" aria-label="Search raw items or suppliers" data-f="q" value="${esc(f.q)}"></div>
           <select data-f="cat" aria-label="Filter by category">${options(cats, f.cat, 'All categories')}</select>
           <span class="spacer"></span><span data-reorder></span>
         </div>
@@ -2167,7 +2201,7 @@ Views.stock = {
   },
   update() {
     const el = $('#view');
-    const f = ui.stock, q = f.q.trim().toLowerCase(), M = model.mats;
+    const f = ui.stock, q = f.q.trim().toLowerCase(), M = model.mats.filter(m => matType(m) === 'raw');
     const base = M.filter(m => (!f.cat || (m.category || 'Other') === f.cat) && (!q || (m.name + ' ' + (m.supplier || '') + ' ' + (m.category || '')).toLowerCase().includes(q)));
     const counts = {
       all: base.length, reorder: base.filter(m => m.status === 'reorder').length, negative: base.filter(m => m.status === 'negative').length,
@@ -2176,31 +2210,31 @@ Views.stock = {
     const segs = [['all', 'All', counts.all], ['reorder', 'Reorder', counts.reorder]];
     if (counts.negative || f.status === 'negative') segs.push(['negative', 'Negative', counts.negative]);
     segs.push(['noprice', 'No price', counts.noprice], ['setmin', 'No minimum set', counts.setmin]);
-    $('[data-seg-wrap]', el).innerHTML = segHtml(segs, f.status);
+    $('[data-seg-wrap]', el).innerHTML = matSegs(base, f);
     const allReorder = M.filter(m => m.status === 'reorder').length;
     $('[data-reorder]', el).innerHTML = allReorder && !Sync.readOnly ? `<button class="btn ghost" data-act="new-po" data-reorder="1">${ICON.po}Order ${allReorder} item${allReorder > 1 ? 's' : ''} at minimum</button>` : '';
     const total = M.reduce((a, m) => a + (m.value || 0), 0);
     const cats = new Set(M.map(m => m.category || 'Other')).size;
-    $('[data-sum]', el).textContent = M.length ? `${M.length} material${M.length === 1 ? '' : 's'} in ${cats} categor${cats === 1 ? 'y' : 'ies'}. Values use average cost.` : '';
+    $('[data-sum]', el).textContent = M.length ? `${M.length} raw item${M.length === 1 ? '' : 's'} in ${cats} categor${cats === 1 ? 'y' : 'ies'}, counted up to 3 decimals. Values use average cost.` : '';
     // summary cards: whole list, independent of the table filters
     const all = { reorder: M.filter(m => m.status === 'reorder').length, negative: M.filter(m => m.status === 'negative').length, noprice: M.filter(m => !(m.pricingCost > 0)).length, setmin: M.filter(m => m.status === 'setmin').length };
     const costed = model.recipes.filter(r => r.rc && r.rc.ready).length;
     $('[data-stats]', el).innerHTML = M.length ? `<div class="stat-grid">
-      <div class="stat wide"><span class="stat-label">Stock value on hand</span><span class="stat-value">${money(total)}</span><span class="stat-note">At average cost, all ${M.length} materials</span></div>
+      <div class="stat wide"><span class="stat-label">Raw items on hand</span><span class="stat-value">${money(total)}</span><span class="stat-note">At average cost, all ${M.length} raw items</span></div>
       ${statBtn('reorder', 'Low stock', all.reorder, all.reorder ? 'warn' : 'ok', 'At or below their minimum', f.status)}
       ${all.negative ? statBtn('negative', 'Below zero', all.negative, 'bad', 'More issued than recorded; count these', f.status) : ''}
       ${statBtn('setmin', 'No minimum set', all.setmin, all.setmin ? 'warn' : 'ok', 'Set one to get reorder alerts', f.status)}
       ${statBtn('noprice', 'Needs a price', all.noprice, all.noprice ? 'bad' : 'ok', `${costed} of ${model.recipes.length} recipe${model.recipes.length === 1 ? '' : 's'} fully costed`, f.status)}
     </div>` : '';
     // recent deliveries and value by category
-    const dels = model.log.filter(e => e.type === 'purchase' && !e.void).slice(-5).reverse();
+    const dels = model.log.filter(e => e.type === 'purchase' && !e.void && matType(model.matById[e.materialId] || model.allMats.find(x => x.id === e.materialId)) === 'raw').slice(-5).reverse();
     const byCat = {}; for (const m of M) byCat[m.category || 'Other'] = (byCat[m.category || 'Other'] || 0) + (m.value || 0);
     const catRows = Object.entries(byCat).filter(([, v]) => v > 0.004).sort((a, b) => b[1] - a[1]);
     const zeroCats = Object.keys(byCat).length - catRows.length;
     $('[data-dash]', el).innerHTML = M.length ? `
       <section class="card" aria-labelledby="dl-h"><div class="card-head"><h2 id="dl-h">Recent deliveries</h2><button type="button" class="link" data-all-deliveries>View all deliveries</button></div>
         ${dels.length ? `<ul class="feed">${dels.map(e => { const m = model.matById[e.materialId] || model.allMats.find(x => x.id === e.materialId); const nm = m ? m.name : 'Removed material';
-          return `<li><span class="feed-ico" aria-hidden="true">${ICON.receive}</span><span class="feed-main"><b>${esc(nm)}, ${esc(qty(num(e.qty)))} ${esc(e.unit || (m && m.unit) || '')} at ${esc(money(num(e.unitCost)))}</b><span>${esc(fmtDate(e.date))}${e.supplier ? ', ' + esc(e.supplier) : ''}</span></span><span class="feed-amt">${money((num(e.qty) || 0) * (num(e.unitCost) || 0))}</span></li>`; }).join('')}</ul>`
+          return `<li><span class="feed-ico" aria-hidden="true">${ICON.receive}</span><span class="feed-main"><b>${esc(nm)}, ${esc(m ? mQty(m, num(e.qty)) : qty(num(e.qty)))} ${esc(e.unit || (m && m.unit) || '')} at ${esc(money(num(e.unitCost)))}</b><span>${esc(fmtDate(e.date))}${e.supplier ? ', ' + esc(e.supplier) : ''}</span></span><span class="feed-amt">${money((num(e.qty) || 0) * (num(e.unitCost) || 0))}</span></li>`; }).join('')}</ul>`
           : `<p class="feed-empty">No deliveries recorded yet. Use Receive delivery when stock arrives.</p>`}
       </section>
       <section class="card" aria-labelledby="vc-h"><div class="card-head"><h2 id="vc-h">Stock value by category</h2></div>
@@ -2208,31 +2242,41 @@ Views.stock = {
           ${zeroCats ? `<p class="small faint" style="margin-top:${catRows.length ? 14 : 0}px">${catRows.length > 6 ? `${catRows.length - 6} more categor${catRows.length - 6 === 1 ? 'y' : 'ies'} not shown. ` : ''}${zeroCats} categor${zeroCats === 1 ? 'y has' : 'ies have'} no stock value yet: their materials are at zero or still need a price.</p>` : ''}</div>
       </section>` : '';
     const live = $('[data-live]', el);
-    if (!M.length) { live.innerHTML = `<div class="empty"><h3>No materials yet</h3><p>Add the raw materials you buy and stock. Recipes and prices build on this list.</p><button class="btn" data-act="new-material" data-write>${ICON.plus}New material</button></div>`; return; }
+    if (!M.length) { live.innerHTML = `<div class="empty"><h3>No raw items yet</h3><p>Add the ingredients you buy and stock, like meat, vegetables and fruit. Recipes and prices build on this list.</p><button class="btn" data-act="new-material" data-type="raw" data-write>${ICON.plus}New raw item</button></div>`; return; }
+    live.innerHTML = matTableHtml(base, f, 'raw items');
+  }
+};
+function matTableHtml(base, f, noun) {
     const rows = sortRows(base.filter(m => f.status === 'all' || (f.status === 'noprice' ? !(m.pricingCost > 0) : m.status === f.status)), f, {
       name: m => m.name, cat: m => m.category || 'Other', onhand: m => m.onHand, min: m => num(m.minStock) || null, status: m => (MAT_STATUS[m.status] || [m.status])[0],
       wac: m => m.wac, value: m => (m.onHand ? m.value : null), price: m => (m.pricingCost > 0 ? m.pricingCost : null), change: m => m.change
     });
-    if (!rows.length) { live.innerHTML = `<div class="empty"><h3>Nothing matches these filters</h3><p>Try a different search, category or status.</p></div>`; return; }
+    if (!rows.length) return `<div class="empty"><h3>Nothing matches these filters</h3><p>Try a different search, category or status.</p></div>`;
     const pg = pageSlice(rows, f), sub = rows.reduce((a, m) => a + (m.value || 0), 0);
-    live.innerHTML = `<div class="tbl-wrap"><table class="tbl stack"><thead><tr>
-      ${sortTh(f, 'name', 'Material', 'sticky')}${sortTh(f, 'cat', 'Category')}${sortTh(f, 'onhand', 'On hand', 'num', true)}${sortTh(f, 'min', 'Minimum', 'num', true)}${sortTh(f, 'status', 'Status')}
+    return `<div class="tbl-wrap"><table class="tbl stack"><thead><tr>
+      ${sortTh(f, 'name', 'Item', 'sticky')}${sortTh(f, 'cat', 'Category')}${sortTh(f, 'onhand', 'On hand', 'num', true)}${sortTh(f, 'min', 'Minimum', 'num', true)}${sortTh(f, 'status', 'Status')}
       ${sortTh(f, 'wac', 'Avg cost', 'num', true)}${sortTh(f, 'value', 'Stock value', 'num', true)}${sortTh(f, 'price', 'Price for recipes', 'num', true)}${sortTh(f, 'change', 'Last change', 'num', true)}<th scope="col" class="num pin-r">Actions</th></tr></thead><tbody>
       ${pg.list.map(m => `<tr data-open="mat" data-id="${esc(m.id)}">
         <td class="sticky c-main"><span class="name">${esc(m.name)}</span>${pendingTag('materials/' + m.id)}${m.supplier ? `<div class="small faint">${esc(m.supplier)}</div>` : ''}</td>
         <td class="c-main">${catChip(m.category)}</td>
-        <td class="num c-side"><b>${qty(m.onHand)}</b> <span class="faint">${esc(m.unit)}</span></td>
-        <td class="num c-hide" data-label="Minimum">${num(m.minStock) ? qty(num(m.minStock)) : '<span class="faint">Not set</span>'}</td>
+        <td class="num c-side"><b>${mQty(m, m.onHand)}</b> <span class="faint">${esc(m.unit)}</span></td>
+        <td class="num c-hide" data-label="Minimum">${num(m.minStock) ? mQty(m, num(m.minStock)) : '<span class="faint">Not set</span>'}</td>
         <td class="c-wide">${stPill(MAT_STATUS, m.status)}</td>
         <td class="num c-hide" data-label="Avg cost">${M_(m.wac)}</td>
         <td class="num c-side" data-label="Value">${m.onHand ? money(m.value) : '<span class="faint">—</span>'}</td>
         <td class="num c-wide" data-label="Price for recipes">${m.pricingCost > 0 ? `${money(m.pricingCost)}<div class="small faint">${esc(m.priceSource)}</div>` : `<button type="button" class="add-price" data-act="mat-price" data-id="${esc(m.id)}" data-write>Add price</button>`}</td>
         <td class="num c-hide" data-label="Last change">${chg(m.change)}</td>
         <td class="w-min c-wide pin-r"><div class="row-acts" data-write><button type="button" class="icon-btn" data-act="receive" data-id="${esc(m.id)}" aria-label="Receive ${esc(m.name)}" title="Receive">${ICON.receive}</button><button type="button" class="icon-btn" data-act="issue" data-id="${esc(m.id)}" aria-label="Issue ${esc(m.name)}" title="Issue">${ICON.issue}</button></div></td></tr>`).join('')}
-      </tbody><tfoot><tr><td class="sticky c-main">${rows.length} material${rows.length === 1 ? '' : 's'} match</td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide"></td><td class="num c-side tc-total">${M_(sub)}</td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide pin-r"></td></tr></tfoot></table></div>
-      ${pagerHtml(rows.length, pg, f, 'materials')}`;
-  }
-};
+      </tbody><tfoot><tr><td class="sticky c-main">${rows.length} shown</td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide"></td><td class="num c-side tc-total">${M_(sub)}</td><td class="c-hide"></td><td class="c-hide"></td><td class="c-hide pin-r"></td></tr></tfoot></table></div>
+      ${pagerHtml(rows.length, pg, f, noun)}`;
+}
+function matSegs(base, f) {
+  const counts = { all: base.length, reorder: base.filter(m => m.status === 'reorder').length, negative: base.filter(m => m.status === 'negative').length, noprice: base.filter(m => !(m.pricingCost > 0)).length, setmin: base.filter(m => m.status === 'setmin').length };
+  const segs = [['all', 'All', counts.all], ['reorder', 'Reorder', counts.reorder]];
+  if (counts.negative || f.status === 'negative') segs.push(['negative', 'Negative', counts.negative]);
+  segs.push(['noprice', 'No price', counts.noprice], ['setmin', 'No minimum set', counts.setmin]);
+  return segHtml(segs, f.status);
+}
 const M_ = v => M(v);
 
 /* =========================================================
@@ -2292,7 +2336,7 @@ Views.movements = {
       body += `<tr class="${e.void ? 'void' : ''}">
         <td class="sticky"><span class="name">${esc(title)}</span>${pendingTag('e/' + e.id)}</td>
         <td class="nowrap">${esc(TYPES[e.type] || e.type)}</td>
-        <td class="num ${e.type === 'production' ? '' : signed > 0 ? 'pos' : signed < 0 ? 'neg' : ''}">${signed > 0 && e.type !== 'production' ? '+' : ''}${qty(signed)} <span class="faint">${unitTxt}</span></td>
+        <td class="num ${e.type === 'production' ? '' : signed > 0 ? 'pos' : signed < 0 ? 'neg' : ''}">${signed > 0 && e.type !== 'production' ? '+' : ''}${e.materialId && m ? mQty(m, signed) : qty(signed)} <span class="faint">${unitTxt}</span></td>
         <td class="num">${M(ucost)}</td>
         <td class="num">${M(val)}</td>
         <td>${whoWhere}</td>
@@ -2949,7 +2993,7 @@ function openMaterial(id) {
         <button class="btn ghost" data-mact="edit">${ICON.edit}Edit</button>
       </div>
       <dl class="facts">
-        <div><dt>On hand</dt><dd><b>${qty(m.onHand)}</b> ${esc(m.unit)}</dd></div>
+        <div><dt>On hand</dt><dd><b>${mQty(m, m.onHand)}</b> ${esc(m.unit)}</dd></div>
         <div><dt>Minimum / order up to</dt><dd>${num(m.minStock) ? qty(num(m.minStock)) + ' ' + esc(m.unit) : '<span class="faint">Not set</span>'}${num(m.par) ? ` <small>/ ${qty(num(m.par))}</small>` : ''}</dd></div>
         <div><dt>Stock value</dt><dd>${M(m.value)}</dd></div>
         <div><dt>Weighted avg purchase cost</dt><dd>${M(m.wac)}</dd></div>
@@ -2970,16 +3014,21 @@ function openMaterial(id) {
   }
 }
 
-function editMaterial(id) {
+function editMaterial(id, opts = {}) {
   const raw = id ? view.materials[id] : null;
   const m = id ? model.matById[id] : null;
   const S = model.S;
-  const d = raw ? clone(raw) : { name: '', category: S.materialCategories[0] || 'Other', unit: 'kg', minStock: 0, par: null, supplier: '', quote: null, quoteDate: null, archived: false };
+  const d = raw ? clone(raw) : { name: '', category: S.materialCategories[0] || 'Other', unit: opts.type === 'fg' ? 'pc' : 'kg', minStock: 0, par: null, supplier: '', quote: null, quoteDate: null, archived: false, qtyType: opts.type === 'fg' ? 'fg' : 'raw' };
+  const curType = matType(d);
   const inUse = id ? (m.moves.length || model.entries.some(e => e.materialId === id) || model.recipes.some(r => (r.ingredients || []).some(l => l.materialId === id))) : false;
   const supNames = [...model.suppliers.map(s => s.name), ...model.mats.map(x => x.supplier)];
   const s = sheet({
-    title: id ? 'Edit material' : 'New material',
+    title: id ? `Edit ${curType === 'fg' ? 'finished good' : 'raw item'}` : 'New stock item',
     body: `<div class="note bad" data-err hidden></div>
+      <fieldset class="type-pick"><legend>Item type</legend>
+        ${Object.entries(QTY_TYPES).map(([k, [l, h]]) => `<label class="type-opt"><input type="radio" name="qtyType" value="${k}"${curType === k ? ' checked' : ''}><span><b>${esc(l)}</b><small>${esc(h)}</small></span></label>`).join('')}
+      </fieldset>
+      <p class="note warn" data-typenote hidden></p>
       <label class="f">Name<input type="text" name="name" value="${esc(d.name)}" autofocus></label>
       <div class="grid g2">
         <label class="f">Category<select name="category">${options(S.materialCategories, d.category)}</select></label>
@@ -2994,10 +3043,18 @@ function editMaterial(id) {
         <div class="grid g2" style="margin-top:10px" data-sellbox ${d.sellable ? '' : 'hidden'}><label class="f">Selling price per ${esc(d.unit || 'unit')}<input inputmode="decimal" name="sellPrice" value="${num(d.sellPrice) > 0 ? num(d.sellPrice) : ''}" placeholder="${m && resaleSuggested(m, S.channels[0]) ? 'Suggested ' + money(resaleSuggested(m, S.channels[0])) : 'Enter price'}"><span class="hint">Leave blank to use the suggested price from your pricing assumptions.</span></label>
           <label class="f">VAT<select name="sellVat">${VAT_TYPES.map(([k, l]) => `<option value="${k}"${(d.sellVat || 'vatable') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div></div>
       ${id && m && m.moves.length ? `<p class="small faint" data-unitnote hidden>Past movements were recorded in ${esc(raw.unit)}. Changing the unit doesn't convert them.</p>` : ''}`,
-    foot: `${id ? (inUse ? `<button class="btn danger" data-arch>${d.archived ? 'Restore' : 'Archive'}</button>` : `<button class="btn danger" data-del>Delete</button>`) : ''}<span class="grow"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" data-save>${id ? 'Save changes' : 'Add material'}</button>`
+    foot: `${id ? (inUse ? `<button class="btn danger" data-arch>${d.archived ? 'Restore' : 'Archive'}</button>` : `<button class="btn danger" data-del>Delete</button>`) : ''}<span class="grow"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" data-save>${id ? 'Save changes' : 'Add item'}</button>`
   });
   const f = n => s.el.querySelector(`[name="${n}"]`);
   f('sellable').addEventListener('change', () => { s.el.querySelector('[data-sellbox]').hidden = !f('sellable').checked; });
+  const pickedType = () => { const r = s.el.querySelector('[name="qtyType"]:checked'); return r ? r.value : 'raw'; };
+  const typeNote = () => {
+    const n = s.el.querySelector('[data-typenote]'); const t = pickedType();
+    const frac = m && Math.abs(m.onHand - Math.round(m.onHand)) > 1e-9;
+    n.hidden = !(t === 'fg' && frac);
+    if (!n.hidden) n.textContent = `${m.name} has ${qtyText('raw', m.onHand)} ${m.unit} on hand. As a finished good it will be counted in whole numbers: do a stock count to bring it to a whole number.`;
+  };
+  s.el.querySelector('.type-pick').addEventListener('change', typeNote); typeNote();
   const un = s.el.querySelector('[data-unitnote]');
   if (un) f('unit').addEventListener('change', () => { un.hidden = f('unit').value === raw.unit; });
   s.el.querySelector('[data-save]').addEventListener('click', async () => {
@@ -3006,8 +3063,10 @@ function editMaterial(id) {
     const name = f('name').value.trim();
     if (!name) { errs.push('Enter a name'); f('name').setAttribute('aria-invalid', 'true'); }
     else if (model.allMats.some(x => x.id !== id && x.name.trim().toLowerCase() === name.toLowerCase())) { errs.push(`"${name}" already exists`); f('name').setAttribute('aria-invalid', 'true'); }
+    const qtyType = pickedType();
     const minStock = f('minStock').value.trim() === '' ? 0 : num(f('minStock').value);
     if (minStock == null || minStock < 0) { errs.push('Minimum stock must be zero or more'); f('minStock').setAttribute('aria-invalid', 'true'); }
+    else if (qtyType === 'fg' && Math.abs(minStock - Math.round(minStock)) > 1e-9) { errs.push('Minimum stock for a finished good must be a whole number'); f('minStock').setAttribute('aria-invalid', 'true'); }
     const sellPrice = f('sellPrice').value.trim() === '' ? null : num(f('sellPrice').value);
     if (f('sellable').checked && sellPrice != null && !(sellPrice > 0)) { errs.push('Selling price must be above zero'); f('sellPrice').setAttribute('aria-invalid', 'true'); }
     const par = f('par').value.trim() === '' ? null : num(f('par').value);
@@ -3015,10 +3074,11 @@ function editMaterial(id) {
     const quote = f('quote').value.trim() === '' ? null : num(f('quote').value);
     if (quote != null && !(quote >= 0)) { errs.push('Quote must be a number'); f('quote').setAttribute('aria-invalid', 'true'); }
     if (errs.length) { err.hidden = false; err.textContent = errs.join('. ') + '.'; return; }
-    const full = { ...d, name, category: f('category').value, unit: f('unit').value, minStock, par: par > 0 ? par : null, sellable: f('sellable').checked, sellPrice: sellPrice > 0 ? sellPrice : null, sellVat: f('sellVat').value, supplier: f('supplier').value.trim(), quote: quote > 0 ? quote : null, quoteDate: quote > 0 ? (f('quoteDate').value || today()) : null };
+    if (par != null && qtyType === 'fg' && Math.abs(par - Math.round(par)) > 1e-9) { err.hidden = false; err.textContent = 'Order-up-to level for a finished good must be a whole number.'; f('par').setAttribute('aria-invalid', 'true'); return; }
+    const full = { ...d, qtyType, name, category: f('category').value, unit: f('unit').value, minStock: qtyType === 'raw' ? roundQ('raw', minStock) : minStock, par: par > 0 ? par : null, sellable: f('sellable').checked, sellPrice: sellPrice > 0 ? sellPrice : null, sellVat: f('sellVat').value, supplier: f('supplier').value.trim(), quote: quote > 0 ? quote : null, quoteDate: quote > 0 ? (f('quoteDate').value || today()) : null };
     const newId = id || 'm-' + slug(name) + '-' + uid().slice(-4);
     await saveDoc('materials', newId, full, raw);
-    toast(id ? 'Material saved' : `${name} added`);
+    toast(id ? `${name} saved` : `${name} added as a ${qtyType === 'fg' ? 'finished good' : 'raw item'}`);
     s.close();
   });
   const arch = s.el.querySelector('[data-arch]');
@@ -3113,7 +3173,8 @@ function openReceive({ materialId, poId } = {}) {
       const q = num(qi.value), c = num(ci.value);
       const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0)), b3 = lineErr(ci, c == null || c < 0);
       if (b1 || b2 || b3) { errs.push('Each item needs a material, a quantity above zero and a unit cost'); continue; }
-      lines.push({ m: model.matById[sel.value], q, c, poLineId: l.dataset.poLine && l.dataset.poMat === sel.value ? l.dataset.poLine : null });
+      const qp = qtyProblem(model.matById[sel.value], q); if (qp) { lineErr(qi, true); errs.push(qp); continue; }
+      lines.push({ m: model.matById[sel.value], q: roundQ(matType(model.matById[sel.value]), q), c, poLineId: l.dataset.poLine && l.dataset.poMat === sel.value ? l.dataset.poLine : null });
     }
     if (!lines.length && !errs.length) errs.push('Add at least one item');
     if (errs.length) { err.hidden = false; err.textContent = [...new Set(errs)].join('. ') + '.'; return; }
@@ -3217,7 +3278,8 @@ function openIssue({ materialId, recipeId } = {}) {
       const q = num(qi.value);
       const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0));
       if (b1 || b2) { errs.push('Each item needs a material and a quantity above zero'); continue; }
-      lines.push({ m: model.matById[sel.value], q });
+      const qp = qtyProblem(model.matById[sel.value], q); if (qp) { lineErr(qi, true); errs.push(qp); continue; }
+      lines.push({ m: model.matById[sel.value], q: roundQ(matType(model.matById[sel.value]), q) });
     }
     if (!lines.length && !errs.length) errs.push('Add at least one item');
     if (errs.length) { err.hidden = false; err.textContent = [...new Set(errs)].join('. ') + '.'; return; }
@@ -3259,7 +3321,7 @@ function openCount() {
     const list = model.mats.filter(m => (!st.cat || (m.category || 'Other') === st.cat) && (!q || m.name.toLowerCase().includes(q)));
     rowsEl.innerHTML = list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="sticky">Material</th><th>Category</th><th class="num">System</th><th class="num" style="min-width:120px">Counted</th><th class="num">Difference</th></tr></thead><tbody>
       ${list.map(m => `<tr><td class="sticky"><span class="name">${esc(m.name)}</span></td><td>${catChip(m.category)}</td><td class="num">${qty(m.onHand)} <span class="faint">${esc(m.unit)}</span></td>
-        <td class="num"><input inputmode="decimal" data-cid="${esc(m.id)}" value="${esc(counted[m.id] ?? '')}" style="text-align:right" aria-label="Counted ${esc(m.name)} in ${esc(m.unit)}"></td>
+        <td class="num"><input inputmode="${matType(m) === 'fg' ? 'numeric' : 'decimal'}" placeholder="${matType(m) === 'fg' ? '0' : '0.000'}" data-cid="${esc(m.id)}" value="${esc(counted[m.id] ?? '')}" style="text-align:right" aria-label="Counted ${esc(m.name)} in ${esc(m.unit)}"></td>
         <td class="num" data-diff="${esc(m.id)}">${diffCell(m)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No materials match.</p>';
   }
   function diffCell(m) {
@@ -3281,6 +3343,8 @@ function openCount() {
   });
   s.el.querySelector('[data-save]').addEventListener('click', async () => {
     const err = s.el.querySelector('[data-err]');
+    const typeBad = Object.entries(counted).map(([id, v]) => v !== '' && num(v) > 0 ? qtyProblem(model.matById[id], num(v)) : '').filter(Boolean);
+    if (typeBad.length) { err.hidden = false; err.textContent = typeBad.slice(0, 3).join('. ') + (typeBad.length > 3 ? `. ${typeBad.length - 3} more to fix.` : '.'); return; }
     const bad = Object.entries(counted).filter(([, v]) => v !== '' && !(num(v) >= 0));
     if (bad.length) { err.hidden = false; err.textContent = 'Counted quantities must be zero or more.'; return; }
     const ch = changes();
@@ -3288,7 +3352,7 @@ function openCount() {
     const date = s.el.querySelector('[name="date"]').value || today();
     const staff = s.el.querySelector('[name="staff"]').value, remarks = s.el.querySelector('[name="remarks"]').value.trim();
     const at = new Date().toISOString();
-    await addEntries(ch.map(([id, v]) => { const m = model.matById[id]; const n = num(v); return { id: uid('e'), type: 'adjust', date, materialId: id, qty: +(n - m.onHand).toFixed(6), unitCost: m.bookCost || 0, unit: m.unit, staff, purpose: 'Physical count', counted: n, systemQty: m.onHand, remarks, by: ME.id || null, at }; }));
+    await addEntries(ch.map(([id, v]) => { const m = model.matById[id]; const n = roundQ(matType(m), num(v)); return { id: uid('e'), type: 'adjust', date, materialId: id, qty: +(n - m.onHand).toFixed(6), unitCost: m.bookCost || 0, unit: m.unit, staff, purpose: 'Physical count', counted: n, systemQty: m.onHand, remarks, by: ME.id || null, at }; }));
     toast(`Count saved: ${ch.length} item${ch.length > 1 ? 's' : ''} adjusted`);
     s.close();
   });
@@ -3796,7 +3860,8 @@ function editPO(id, { reorder = false } = {}) {
       const q = num(qi.value), c = ci.value.trim() === '' ? null : num(ci.value);
       const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0)), b3 = lineErr(ci, ci.value.trim() !== '' && !(c >= 0));
       if (b1 || b2 || b3) { errs.push('Each item needs a material and a quantity above zero'); continue; }
-      lines.push({ id: l.dataset.lid, materialId: sel.value, qty: q, unitCost: c });
+      const qp = qtyProblem(model.matById[sel.value], q); if (qp) { lineErr(qi, true); errs.push(qp); continue; }
+      lines.push({ id: l.dataset.lid, materialId: sel.value, qty: roundQ(matType(model.matById[sel.value]), q), unitCost: c });
     }
     if (!lines.length && !errs.length) errs.push('Add at least one item');
     if (errs.length) { err.hidden = false; err.textContent = [...new Set(errs)].join('. ') + '.'; return; }
@@ -3941,7 +4006,8 @@ function openWaste({ materialId, recipeId, dish } = {}) {
         const q = num(qi.value); const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0));
         if (b1 || b2) { errs.push('Each item needs a material and a quantity above zero'); continue; }
         const m = model.matById[sel.value];
-        entries.push({ id: uid('e'), type: 'waste', materialId: m.id, qty: q, unitCost: m.bookCost || 0, unit: m.unit, ...common });
+        const qp = qtyProblem(m, q); if (qp) { lineErr(qi, true); errs.push(qp); continue; }
+        entries.push({ id: uid('e'), type: 'waste', materialId: m.id, qty: roundQ(matType(m), q), unitCost: m.bookCost || 0, unit: m.unit, ...common });
       }
       if (!entries.length && !errs.length) errs.push('Add at least one item');
     } else {
@@ -4281,7 +4347,8 @@ function posCatalog(chId) {
   for (const m of model.mats) {
     if (!m.sellable) continue;
     const price = num(m.sellPrice) > 0 ? num(m.sellPrice) : resaleSuggested(m, ch);
-    items.push({ key: `m:${m.id}`, kind: 'resale', m, name: m.name, size: '', category: m.category || 'Other', price, left: Math.floor(m.onHand + 1e-9), unit: m.unit, vat: m.sellVat || 'vatable' });
+    const qt = matType(m);
+    items.push({ key: `m:${m.id}`, kind: 'resale', m, name: m.name, size: '', category: m.category || 'Other', price, left: qt === 'raw' ? Math.round(m.onHand * 1000) / 1000 : Math.floor(m.onHand + 1e-9), unit: m.unit, vat: m.sellVat || 'vatable', qtyType: qt });
   }
   return { items, ch, ci, byKey: Object.fromEntries(items.map(i => [i.key, i])) };
 }
@@ -4316,7 +4383,45 @@ function chargeLabel(t) {
   if (t.terms === 'partial') return t.amountNow > 0 ? `Charge ${money(t.amountNow)}, ${money(t.balance)} unpaid` : 'Enter the amount paid now';
   return `Charge ${money(t.total)}`;
 }
+const isWeighed = it => !!it && it.qtyType === 'raw';
+const soldQty = it => (isWeighed(it) ? `${qtyText('raw', num(it.qty))} ${it.unit || ''}`.trim() : qty(num(it.qty)));
+const perUnit = it => (isWeighed(it) ? `per ${it.unit || 'unit'}` : 'each');
+function askWeight(key) {
+  const it = posCatalog().byKey[key]; if (!it) return;
+  const line = Cart.lines.find(x => x.key === key);
+  const s = sheet({
+    title: `How much ${it.name}?`, size: 'narrow',
+    body: `<p class="muted">${money(it.price)} per ${esc(it.unit)}. Raw item: enter up to 3 decimals.</p>
+      <div class="note bad" data-err hidden></div>
+      <label class="f">Quantity in ${esc(it.unit)}<span class="unitbox"><input inputmode="decimal" name="w" value="${line ? String(roundQ('raw', line.qty)) : ''}" placeholder="0.000" autocomplete="off"><span>${esc(it.unit)}</span></span></label>
+      <div class="quick">${[0.25, 0.5, 1].map(v => `<button type="button" class="btn ghost sm" data-w="${v}">${v.toFixed(3)} ${esc(it.unit)}</button>`).join('')}</div>
+      <p class="weight-total" data-wt aria-live="polite"></p>
+      <p class="small faint">${esc(qtyText('raw', it.left))} ${esc(it.unit)} in stock</p>`,
+    foot: `${line ? '<button class="btn danger" data-wrm>Remove from order</button>' : ''}<span class="grow"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" data-wok>${line ? 'Update order' : 'Add to order'}</button>`
+  });
+  const inp = s.el.querySelector('[name="w"]'), tot = s.el.querySelector('[data-wt]'), er = s.el.querySelector('[data-err]');
+  const upd = () => { const q = num(inp.value); tot.innerHTML = q > 0 ? `${esc(qtyText('raw', q))} ${esc(it.unit)} at ${money(it.price)} = <b>${money(Math.round(q * it.price * 100) / 100)}</b>` : ''; };
+  const ok = () => {
+    const q = num(inp.value);
+    const bad = !(q > 0) ? `Enter how much ${it.name} in ${it.unit}` : qtyProblem(it.m, q);
+    if (bad) { er.hidden = false; er.textContent = bad + '.'; inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
+    const v = roundQ('raw', q), l = Cart.lines.find(x => x.key === key);
+    if (l) l.qty = v; else Cart.lines.push({ key, qty: v });
+    saveCart(); refreshPos(); s.close();
+    const tile = $(`[data-add="${CSS.escape(key)}"]`); if (tile) { tile.classList.remove('added'); void tile.offsetWidth; tile.classList.add('added'); }
+  };
+  upd(); setTimeout(() => inp.focus(), 40);
+  inp.addEventListener('input', () => { er.hidden = true; inp.removeAttribute('aria-invalid'); upd(); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
+  s.el.addEventListener('click', e => {
+    const b = e.target.closest('[data-w]'); if (b) { inp.value = (+b.dataset.w).toFixed(3); er.hidden = true; inp.removeAttribute('aria-invalid'); upd(); inp.focus(); return; }
+    if (e.target.closest('[data-wok]')) { ok(); return; }
+    if (e.target.closest('[data-wrm]')) { Cart.lines = Cart.lines.filter(x => x.key !== key); saveCart(); refreshPos(); s.close(); }
+  });
+}
 function addToCart(key) {
+  const ci = posCatalog().byKey[key];
+  if (isWeighed(ci)) { askWeight(key); return; }
   const l = Cart.lines.find(x => x.key === key);
   if (l) l.qty++; else Cart.lines.push({ key, qty: 1 });
   saveCart(); refreshPos();
@@ -4381,18 +4486,18 @@ Views.sell = {
       grid.innerHTML = `<div class="prod-grid">${sorted.map(i => prodTile(i, inCart[i.key])).join('')}</div>${unpriced ? `<p class="small faint" style="margin-top:10px">${unpriced} item${unpriced > 1 ? 's have' : ' has'} no price yet. Open the recipe to fill in ingredient prices or enter a menu price.</p>` : ''}`;
     }
     renderCart($('[data-cart]', el), cat);
-    const t = cartTotals(cat); const n = t.lines.reduce((a, l) => a + l.qty, 0);
+    const t = cartTotals(cat); const n = t.lines.reduce((a, l) => a + (isWeighed(l.item) ? 1 : l.qty), 0);
     $('[data-pos-bar]', el).innerHTML = `<button type="button" class="btn" data-open-cart><span>${n ? `View order, ${n} item${n > 1 ? 's' : ''}` : 'View order'}</span><b>${money(t.total)}</b></button>`;
   }
 };
 function prodTile(i, inCart) {
   let stock, cls = '';
   if (i.order) stock = 'Made to order';
-  else if (i.kind === 'resale') { stock = `${qty(i.left)} ${i.unit} left`; cls = i.left <= 0 ? 'bad' : i.left <= 5 ? 'warn' : ''; }
+  else if (i.kind === 'resale') { stock = `${isWeighed(i) ? qtyText('raw', i.left) : qty(i.left)} ${i.unit} left`; cls = i.left <= 0 ? 'bad' : i.left <= (isWeighed(i) ? 1 : 5) ? 'warn' : ''; }
   else { stock = i.left <= 0 ? 'None cooked' : `${i.left} left`; cls = i.left <= 0 ? 'bad' : i.left <= 3 ? 'warn' : ''; }
   return `<button type="button" class="prod" data-add="${esc(i.key)}" style="--c:${catColor(i.category)}" ${i.price == null ? 'disabled title="No price yet: complete the recipe\u2019s ingredient prices or enter a menu price"' : ''}>
     <span class="prod-name">${esc(i.name)}</span>${i.size ? `<span class="prod-size">${esc(i.size)}</span>` : ''}
-    <span class="prod-price">${i.price != null ? money(i.price, i.price % 1 ? 2 : 0) : 'No price yet'}</span>
+    <span class="prod-price">${i.price != null ? money(i.price, i.price % 1 ? 2 : 0) + (isWeighed(i) ? `<small> / ${esc(i.unit)}</small>` : '') : 'No price yet'}</span>
     <span class="prod-stock ${cls}">${esc(stock)}${i.vat && i.vat !== 'vatable' ? `<span class="faint">, ${esc(vatShort(i.vat))}</span>` : ''}</span>${inCart ? `<span class="prod-badge" aria-label="${inCart} in order">${inCart}</span>` : ''}</button>`;
 }
 function renderCart(root, cat) {
@@ -4405,8 +4510,9 @@ function renderCart(root, cat) {
     <div class="cart-head"><h2>Order</h2><select data-cart-ch aria-label="Sales channel">${S.channels.map(c => `<option value="${esc(c.id)}"${c.id === cat.ch.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
     ${customerRow(cat)}
     <div class="cart-body">${t.lines.length ? `<ul class="cart-lines">${t.lines.map(l => { const it = l.item; const over = it.left != null && l.qty > it.left;
-      return `<li><div class="cl-name"><b>${esc(it.name)}</b>${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="small faint">${money(it.price)} each</div>${over ? `<div class="small st bad">${it.left > 0 ? `Only ${it.left} left` : 'None in stock'}</div>` : ''}</div>
-        <div class="stepper"><button type="button" data-dec="${esc(l.key)}" aria-label="One less ${esc(it.name)}">\u2212</button><span>${l.qty}</span><button type="button" data-inc="${esc(l.key)}" aria-label="One more ${esc(it.name)}">+</button></div>
+      return `<li><div class="cl-name"><b>${esc(it.name)}</b>${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="small faint">${money(it.price)} ${esc(perUnit(it))}</div>${over ? `<div class="small st bad">${it.left > 0 ? `Only ${esc(isWeighed(it) ? qtyText('raw', it.left) + ' ' + it.unit : String(it.left))} left` : 'None in stock'}</div>` : ''}</div>
+        ${isWeighed(it) ? `<div class="stepper weight"><button type="button" data-weight="${esc(l.key)}" aria-label="Change quantity of ${esc(it.name)}, now ${esc(qtyText('raw', l.qty))} ${esc(it.unit)}">${esc(qtyText('raw', l.qty))} ${esc(it.unit)}${ICON.edit}</button></div>`
+          : `<div class="stepper"><button type="button" data-dec="${esc(l.key)}" aria-label="One less ${esc(it.name)}">\u2212</button><span>${l.qty}</span><button type="button" data-inc="${esc(l.key)}" aria-label="One more ${esc(it.name)}">+</button></div>`}
         <div class="cl-amt">${money(l.qty * it.price)}</div></li>`; }).join('')}</ul>` : `<p class="cart-empty">Tap items on the menu to start an order.</p>`}
       ${Cart.lines.length > t.lines.length ? `<p class="small st warn" style="margin-top:8px">Some items have no price on ${esc(cat.ch.name)} and were left out.</p>` : ''}</div>
     <div class="cart-foot">
@@ -4454,6 +4560,7 @@ function wireCart(root) {
     const t = e.target;
     const inc = t.closest('[data-inc]'), dec = t.closest('[data-dec]');
     if (inc) { changeQty(inc.dataset.inc, 1); refreshPos(); return; }
+    const wb = t.closest('[data-weight]'); if (wb) { askWeight(wb.dataset.weight); return; }
     if (dec) { changeQty(dec.dataset.dec, -1); refreshPos(); return; }
     const pay = t.closest('[data-payopt]'); if (pay) { Cart.payment = pay.dataset.payopt; saveCart(); refreshPos(); return; }
     const term = t.closest('[data-term]'); if (term) { Cart.terms = term.dataset.term; if (Cart.terms !== 'full' && !Cart.due) Cart.due = addDays(today(), 7); if (Cart.terms !== 'partial') Cart.paidNow = ''; saveCart(); refreshPos(); return; }
@@ -4506,7 +4613,7 @@ async function charge() {
   const date = today(), at = new Date().toISOString();
   const customer = await resolveCustomer(Cart.customer);
   const items = t.lines.map(l => {
-    const it = l.item, base = { key: it.key, name: it.name, size: it.size || '', qty: l.qty, price: it.price, vat: l.vt, net: +l.net.toFixed(4), vatAmt: +l.vatAmt.toFixed(4) };
+    const it = l.item, base = { key: it.key, name: it.name, size: it.size || '', qty: isWeighed(it) ? roundQ('raw', l.qty) : l.qty, price: it.price, vat: l.vt, net: +l.net.toFixed(4), vatAmt: +l.vatAmt.toFixed(4), qtyType: it.kind === 'resale' ? it.qtyType : 'fg', ...(it.kind === 'resale' ? { unit: it.unit } : {}) };
     if (it.kind === 'resale') { const m = it.m; return { ...base, materialId: m.id, unitCost: m.bookCost || 0, use: [{ m: m.id, q: l.qty, c: m.bookCost || 0 }] }; }
     const r = it.r, z = it.z;
     if (it.order) {
@@ -4540,7 +4647,7 @@ function receiptHtml(s) {
     <div class="r-biz">${esc(S.businessName || 'Stock & costing')}</div>${S.businessAddress ? `<div class="r-small">${esc(S.businessAddress)}</div>` : ''}
     <div class="r-meta"><b>Order ${esc(s.receipt || '')}</b><br>${esc(fmtDate(s.date))}, ${esc(fmtTime(s.at))}<br>${esc(s.channelName || '')}${s.note ? `<br>${esc(s.note)}` : ''}</div>
     ${hasCustomer(s.customer) ? `<div class="r-cust"><div class="r-lbl">Customer</div>${s.customer.name ? `<b>${esc(s.customer.name)}</b>` : ''}${s.customer.phone ? `<div>${esc(s.customer.phone)}</div>` : ''}${s.customer.address ? `<div class="r-addr">${esc(s.customer.address)}</div>` : ''}</div>` : ''}
-    <table class="r-items">${(s.items || []).map(it => `<tr><td>${qty(num(it.qty))} \u00d7 ${esc(it.name)}${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="r-small">${money(num(it.price))} each${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></td><td class="num">${money(num(it.qty) * num(it.price))}</td></tr>`).join('')}</table>
+    <table class="r-items">${(s.items || []).map(it => `<tr><td>${esc(soldQty(it))} \u00d7 ${esc(it.name)}${it.size ? ` <span class="muted">${esc(it.size)}</span>` : ''}<div class="r-small">${money(num(it.price))} ${esc(perUnit(it))}${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></td><td class="num">${money(num(it.qty) * num(it.price))}</td></tr>`).join('')}</table>
     <div class="r-tot">
       <div class="kv"><span>Subtotal</span><span>${money(num(s.subtotal))}</span></div>
       ${num(s.discount && s.discount.amount) ? `<div class="kv"><span>Discount${s.discount.type === 'senior' ? ' (senior/PWD)' : ''}</span><span>\u2212${money(num(s.discount.amount))}</span></div>` : ''}
@@ -4618,7 +4725,7 @@ function openSalesToday() {
       </dl>
       ${Object.keys(byM).length ? `<div><h3 style="margin-bottom:4px">Collected by payment method</h3>${Object.entries(byM).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span>${money(v)}</span></div>`).join('')}${older > 0.004 ? `<p class="small faint" style="margin-top:6px">Includes ${money(older)} paid today for earlier orders.</p>` : ''}</div>` : ''}`; })()}
       <div><h3 style="margin-bottom:6px">Orders</h3>${list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Order</th><th>Time</th><th>Customer</th><th>Items</th><th class="num">Total</th><th>Paid by</th><th>Status</th></tr></thead><tbody>
-        ${list.map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="nowrap"><b>${esc(s.receipt || '')}</b>${pendingTag('e/' + s.id)}</td><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="small">${hasCustomer(s.customer) ? `${esc(s.customer.name || '')}${s.customer.phone ? `<div class="faint">${esc(s.customer.phone)}</div>` : ''}` : DASH}</td><td class="small">${esc((s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="keep">${stPill(PAY_STATUS, s.payStatus)}</td></tr>`).join('')}
+        ${list.map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="nowrap"><b>${esc(s.receipt || '')}</b>${pendingTag('e/' + s.id)}</td><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="small">${hasCustomer(s.customer) ? `${esc(s.customer.name || '')}${s.customer.phone ? `<div class="faint">${esc(s.customer.phone)}</div>` : ''}` : DASH}</td><td class="small">${esc((s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="keep">${stPill(PAY_STATUS, s.payStatus)}</td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted">${q ? 'No orders match that search.' : 'No sales on this day.'}</p>`}</div>`;
   }
 }
@@ -4676,9 +4783,9 @@ function drawRollSlip(doc, s, W, wmm) {
   }
   for (const it of s.items || []) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(fs(8.5));
-    const name = doc.splitTextToSize(pdfText(`${qty(num(it.qty))} x ${it.name}${it.size ? ' ' + it.size : ''}`), W - 2 * M - amtW);
+    const name = doc.splitTextToSize(pdfText(`${soldQty(it)} x ${it.name}${it.size ? ' ' + it.size : ''}`), W - 2 * M - amtW);
     doc.text(name, M, y); doc.text(pdfText(money(num(it.qty) * num(it.price))), W - M, y, { align: 'right' }); y += name.length * (fs(8.5) + 2);
-    doc.setFontSize(fs(7)); doc.setTextColor(110); doc.text(pdfText(`${money(num(it.price))} each`), M, y); doc.setTextColor(20); y += fs(7) + 5;
+    doc.setFontSize(fs(7)); doc.setTextColor(110); doc.text(pdfText(`${money(num(it.price))} ${perUnit(it)}`), M, y); doc.setTextColor(20); y += fs(7) + 5;
   }
   rule();
   row('Subtotal', money(num(s.subtotal)));
@@ -4727,7 +4834,7 @@ function drawSheetSlip(doc, s, paper) {
   const R = { halign: 'right' };
   doc.autoTable({
     startY: y, head: [['Qty', 'Item', 'Unit price', 'Amount']],
-    body: (s.items || []).map(it => [qty(num(it.qty)), pdfText(it.name + (it.size ? ' (' + it.size + ')' : '')), pdfText(money(num(it.price))), pdfText(money(num(it.qty) * num(it.price)))]),
+    body: (s.items || []).map(it => [soldQty(it), pdfText(it.name + (it.size ? ' (' + it.size + ')' : '')), pdfText(money(num(it.price))), pdfText(money(num(it.qty) * num(it.price)))]),
     margin: { left: M, right: M, top: M, bottom: M + f(24) }, theme: 'grid',
     styles: { font: 'helvetica', fontSize: f(9.5), cellPadding: f(5), lineColor: [210, 216, 219], lineWidth: 0.5, textColor: [25, 35, 42], valign: 'middle' },
     headStyles: { fillColor: [232, 236, 238], textColor: [70, 80, 86], fontStyle: 'bold' },
@@ -4757,7 +4864,7 @@ function drawSheetSlip(doc, s, paper) {
    Finished goods
    ========================================================= */
 function stockNav(active) {
-  return `<nav class="subnav" aria-label="Stock type"><button type="button" data-act="go" data-to="stock" aria-current="${active === 'stock' ? 'page' : 'false'}">Raw materials</button><button type="button" data-act="go" data-to="goods" aria-current="${active === 'goods' ? 'page' : 'false'}">Finished goods</button></nav>`;
+  return `<nav class="subnav" aria-label="Stock type"><button type="button" data-act="go" data-to="stock" aria-current="${active === 'stock' ? 'page' : 'false'}">Raw items</button><button type="button" data-act="go" data-to="goods" aria-current="${active === 'goods' ? 'page' : 'false'}">Finished goods</button></nav>`;
 }
 Views.goods = {
   mount(el) {
@@ -4765,12 +4872,22 @@ Views.goods = {
       <div class="head"><div><h1>Finished goods</h1><p class="sub" data-sum></p></div>
         <div class="actions" data-write><button class="btn ghost" data-act="dish-waste">${ICON.waste}Dish waste</button><button class="btn ghost" data-act="fg-count">${ICON.count}Count leftovers</button><button class="btn" data-act="production">${ICON.pot}Record batch</button></div></div>
       <div data-stats></div>
+      <section class="table-card" aria-labelledby="rm-h" data-rm style="margin-bottom:20px;scroll-margin-top:76px">
+        <div class="tc-head"><h2 id="rm-h">Ready-made goods</h2><div class="search">${ICON.search}<input type="search" data-rmq placeholder="Search ready-made goods" aria-label="Search ready-made goods" value="${esc(ui.goodsMat.q)}"></div>
+          <span class="spacer"></span><button class="btn ghost" data-act="new-material" data-type="fg" data-write>${ICON.plus}New finished good</button></div>
+        <div class="tc-filters"><div class="seg" data-rmseg role="group" aria-label="Filter ready-made goods by status"></div></div>
+        <div data-rmlive></div>
+      </section>
       <section class="table-card" aria-labelledby="fg-h">
         <div class="tc-head"><h2 id="fg-h">Cooked dishes</h2><div class="search">${ICON.search}<input type="search" data-f="q" placeholder="Search dishes" aria-label="Search dishes" value="${esc(ui.goods.q)}"></div>
           <label class="check"><input type="checkbox" data-f="all" ${ui.goods.all ? 'checked' : ''}>Show dishes with nothing on hand</label></div>
         <div data-live></div>
       </section>`;
     bindFilters(el, ui.goods, () => Views.goods.update());
+    const rm = $('[data-rm]', el), g = ui.goodsMat; if (!g.size) g.size = prefGet('sc:pagesize', '25');
+    $('[data-rmq]', rm).addEventListener('input', e => { g.q = e.target.value; g.page = 1; Views.goods.update(); });
+    $('[data-rmseg]', rm).addEventListener('click', e => { const b = e.target.closest('[data-seg]'); if (b) { g.status = b.dataset.seg; g.page = 1; Views.goods.update(); } });
+    wireTable(rm, g, () => Views.goods.update());
   },
   update() {
     const el = $('#view'); const q = ui.goods.q.trim().toLowerCase(); const td = today();
@@ -4779,13 +4896,19 @@ Views.goods = {
     const rows = stocked.filter(r => (!q || r.name.toLowerCase().includes(q)) && (ui.goods.all || Math.abs(r.fg.onHand) > 1e-9 || r.fg.today.made || r.fg.today.sold || r.fg.today.waste));
     const value = stocked.reduce((a, r) => a + r.fg.value, 0);
     const withStock = stocked.filter(r => r.fg.onHand > 1e-9).length;
-    $('[data-sum]', el).textContent = 'Servings come in from production batches and go out through sales, dish waste and leftover counts.';
+    $('[data-sum]', el).textContent = 'Ready-made goods are counted in whole numbers. Cooked dishes come in from production batches and go out through sales, dish waste and leftover counts.';
+    const g = ui.goodsMat, gq = g.q.trim().toLowerCase();
+    const fgAll = model.mats.filter(m => matType(m) === 'fg');
+    const fgBase = fgAll.filter(m => !gq || (m.name + ' ' + (m.supplier || '') + ' ' + (m.category || '')).toLowerCase().includes(gq));
+    const fgValue = fgAll.reduce((a, m) => a + (m.value || 0), 0);
+    $('[data-rmseg]', el).innerHTML = fgAll.length ? matSegs(fgBase, g) : '';
+    $('[data-rmlive]', el).innerHTML = fgAll.length ? matTableHtml(fgBase, g, 'ready-made goods')
+      : `<div class="empty"><h3>No ready-made goods yet</h3><p>Add items you buy ready to sell, like bottled drinks or packaged snacks, as finished goods. They're counted in whole numbers.</p><button class="btn" data-act="new-material" data-type="fg" data-write>${ICON.plus}New finished good</button></div>`;
     const tday = stocked.reduce((a, r) => { a.made += r.fg.today.made || 0; a.sold += r.fg.today.sold || 0; a.waste += r.fg.today.waste || 0; return a; }, { made: 0, sold: 0, waste: 0 });
     $('[data-stats]', el).innerHTML = `<div class="stat-grid">
-      <div class="stat wide"><span class="stat-label">Cooked food on hand</span><span class="stat-value">${money(value)}</span><span class="stat-note">At cost, across ${withStock} dish${withStock === 1 ? '' : 'es'}</span></div>
-      <div class="stat"><span class="stat-label">Cooked today</span><span class="stat-value">${qty(tday.made, 1)}</span><span class="stat-note">Servings from production</span></div>
-      <div class="stat"><span class="stat-label">Sold today</span><span class="stat-value">${qty(tday.sold, 1)}</span><span class="stat-note">Servings</span></div>
-      <div class="stat"><span class="stat-label"><span class="dot ${tday.waste ? 'warn' : 'ok'}" aria-hidden="true"></span>Wasted today</span><span class="stat-value">${qty(tday.waste, 1)}</span><span class="stat-note">Servings</span></div>
+      <div class="stat"><span class="stat-label">Ready-made goods on hand</span><span class="stat-value">${money(fgValue)}</span><span class="stat-note">At average cost, ${fgAll.length} item${fgAll.length === 1 ? '' : 's'}</span></div>
+      <div class="stat"><span class="stat-label">Cooked food on hand</span><span class="stat-value">${money(value)}</span><span class="stat-note">At cost, across ${withStock} dish${withStock === 1 ? '' : 'es'}</span></div>
+      <div class="stat"><span class="stat-label"><span class="dot ${tday.waste ? 'warn' : 'ok'}" aria-hidden="true"></span>Today's cooked dishes</span><span class="stat-value">${qty(tday.made, 1)} cooked</span><span class="stat-note">${qty(tday.sold, 1)} servings sold, ${qty(tday.waste, 1)} wasted</span></div>
     </div>`;
     const live = $('[data-live]', el);
     const orderNote = orderOnly.length ? `<p class="small faint" style="padding:12px 20px 16px">Made to order, so not stocked here: ${orderOnly.map(r => esc(r.name)).join(', ')}. Their ingredients come out of raw stock at each sale.</p>` : '';
@@ -5040,7 +5163,7 @@ function openCustomer(id) {
         ${list.length ? `<ul class="hist">${list.map(x => `<li class="${x.void ? 'void' : ''}">
             <button type="button" class="hist-main" data-rcpt="${esc(x.id)}" aria-label="Open order ${esc(x.receipt || '')}">
               <span class="hist-top"><b>${esc(fmtDate(x.date))}</b><span class="faint">${esc(fmtTime(x.at))}, ${esc(x.receipt || '')}, ${esc(x.channelName || '')}</span>${pendingTag('e/' + x.id)}</span>
-              <span class="hist-items">${esc((x.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}${x.void ? ` <span class="st bad">Voided${x.voidReason ? ': ' + esc(x.voidReason) : ''}</span>` : ''}</span>
+              <span class="hist-items">${esc((x.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}${x.void ? ` <span class="st bad">Voided${x.voidReason ? ': ' + esc(x.voidReason) : ''}</span>` : ''}</span>
             </button>
             <span class="hist-amt"><b>${money(num(x.total))}</b><span class="small muted">${esc(x.payment || '')}</span></span>
             <span class="hist-act">${x.void ? '' : `<button type="button" class="btn ghost sm" data-repeat="${esc(x.id)}" data-write>Repeat</button>`}</span>
@@ -5092,7 +5215,7 @@ async function pdfCustomerHistory(id, period) {
   if (c.address) pdfFields(ctx, [['Address', c.address.replace(/\n/g, ', ')]], 1);
   const R = { halign: 'right' };
   pdfTable(ctx, ['Date', 'Order', 'Items', 'Paid by', 'Total'],
-    list.map(x => [fmtDate(x.date), x.receipt || '', (x.items || []).map(it => `${qty(num(it.qty))} x ${it.name}${it.size ? ' ' + it.size : ''} @ ${money(num(it.price))}`).join('\n') + (num(x.discount && x.discount.amount) ? `\nDiscount -${money(num(x.discount.amount))}` : ''), x.payment || '', money(num(x.total))]),
+    list.map(x => [fmtDate(x.date), x.receipt || '', (x.items || []).map(it => `${soldQty(it)} x ${it.name}${it.size ? ' ' + it.size : ''} @ ${money(num(it.price))}`).join('\n') + (num(x.discount && x.discount.amount) ? `\nDiscount -${money(num(x.discount.amount))}` : ''), x.payment || '', money(num(x.total))]),
     { rowH: 18, columnStyles: { 0: { cellWidth: 72 }, 1: { cellWidth: 78 }, 3: { cellWidth: 70 }, 4: { cellWidth: 70, halign: 'right' } }, foot: ['', '', '', { content: 'Total', styles: R }, { content: money(list.reduce((a, x) => a + (num(x.total) || 0), 0)), styles: R }] });
   if (c.favorites.length) { pdfHeading(ctx, 'Most ordered'); pdfTable(ctx, ['Item', 'Quantity', 'Spent'], c.favorites.slice(0, 8).map(x => [x.name + (x.size ? ' ' + x.size : ''), qty(x.qty), money(x.spent)]), { columnStyles: { 1: { cellWidth: 70, halign: 'right' }, 2: { cellWidth: 90, halign: 'right' } } }); }
   await pdfFinish(ctx, `purchase-history-${slug(c.name || c.phone || 'customer')}-${today()}.pdf`);
@@ -5196,7 +5319,8 @@ function srAnalyze(start, end, buckets) {
       const exV = it.net != null ? net - (num(it.vatAmt) || 0) : net * (1 - vatShare);
       cost += c; A.units += q;
       const k = it.key || it.name + '|' + (it.size || ''); const cat = itemCategory(it);
-      const x = A.items[k] || (A.items[k] = { key: k, name: it.name, size: it.size || '', cat, recipeId: it.recipeId, sizeId: it.sizeId, materialId: it.materialId, qty: 0, net: 0, exVat: 0, cost: 0, orders: 0 });
+      const im = it.materialId ? model.matById[it.materialId] : null;
+      const x = A.items[k] || (A.items[k] = { key: k, name: it.name, size: it.size || '', cat, recipeId: it.recipeId, sizeId: it.sizeId, materialId: it.materialId, qtyType: it.qtyType || (im ? matType(im) : 'fg'), unit: it.unit || (im ? im.unit : ''), qty: 0, net: 0, exVat: 0, cost: 0, orders: 0 });
       x.qty += q; x.net += net; x.exVat += exV; x.cost += c; x.orders++;
       const y = A.cats[cat] || (A.cats[cat] = { qty: 0, net: 0, exVat: 0, cost: 0 }); y.qty += q; y.net += net; y.exVat += exV; y.cost += c;
     }
@@ -5386,7 +5510,7 @@ Views.reports = {
         ${items.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="num w-min">#</th><th class="sticky">Item</th><th>Category</th><th class="num">Qty sold</th><th class="num">Orders</th><th class="num">Sales</th><th class="num">Share</th><th class="num">Gross profit</th><th class="num">Margin</th>${hc ? '<th class="num">Qty vs before</th>' : ''}</tr></thead><tbody>
           ${shownItems.map((x, i) => { const open = x.recipeId && model.recById[x.recipeId] ? `data-open="recipe" data-id="${esc(x.recipeId)}" data-size="${esc(x.sizeId || 'base')}"` : x.materialId && model.matById[x.materialId] ? `data-open="mat" data-id="${esc(x.materialId)}"` : '';
             const dq = x.prevQty != null ? chg2(x.qty, x.prevQty) : null;
-            return `<tr ${open}><td class="num faint">${i + 1}</td><td class="sticky"><span class="name">${esc(x.name)}</span>${x.size ? ` <span class="muted">${esc(x.size)}</span>` : ''}</td><td>${catChip(x.cat)}</td><td class="num">${qty(x.qty)}</td><td class="num">${x.orders}</td><td class="num"><b>${money(x.net)}</b></td><td class="num">${pct(A.net ? x.net / A.net : 0)}</td><td class="num">${money(x.gp)}</td><td class="num">${P2(x.margin)}</td>
+            return `<tr ${open}><td class="num faint">${i + 1}</td><td class="sticky"><span class="name">${esc(x.name)}</span>${x.size ? ` <span class="muted">${esc(x.size)}</span>` : ''}</td><td>${catChip(x.cat)}</td><td class="num">${qtyText(x.qtyType, x.qty)}${x.qtyType === 'raw' && x.unit ? ` <span class="faint">${esc(x.unit)}</span>` : ''}</td><td class="num">${x.orders}</td><td class="num"><b>${money(x.net)}</b></td><td class="num">${pct(A.net ? x.net / A.net : 0)}</td><td class="num">${money(x.gp)}</td><td class="num">${P2(x.margin)}</td>
               ${hc ? `<td class="num">${x.prevQty ? `<span class="${dq > 0 ? 'chg-down' : dq < 0 ? 'chg-up' : ''}">${dq > 0 ? '+' : ''}${pct(dq, 0)}</span> <span class="faint small">from ${qty(x.prevQty)}</span>` : '<span class="small">New</span>'}</td>` : ''}</tr>`; }).join('')}
         </tbody></table></div>${items.length > 15 ? `<div class="more"><button class="btn ghost sm" data-allitems>${ui.sr.allItems ? 'Show top 15' : `Show all ${items.length} items`}</button></div>` : ''}` : '<div class="panel empty" style="padding:20px"><p>No items sold in this period.</p></div>'}
         ${slow.length ? `<p class="small muted" style="margin-top:10px"><b>Not sold this ${P.unit}:</b> ${slow.slice(0, 30).map(esc).join(', ')}${slow.length > 30 ? `, and ${slow.length - 30} more` : ''}.</p>` : ''}
@@ -5423,7 +5547,7 @@ Views.reports = {
       </div>
       ${P.gran === 'day' ? `<section class="section"><div class="panel-head"><h2>Orders</h2><span class="small muted">${A.orders} order${A.orders === 1 ? '' : 's'}</span></div>
         ${A.orders || A.voids.count ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th class="sticky">Order</th><th>Customer</th><th>Items</th><th class="num">Total</th><th>Paid by</th><th>Cashier</th></tr></thead><tbody>
-          ${model.sales.filter(s => s.date === P.start).slice().reverse().map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="sticky nowrap"><b>${esc(s.receipt || '')}</b></td><td class="small">${hasCustomer(s.customer) ? esc(s.customer.name || s.customer.phone) : DASH}</td><td class="small">${esc((s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="small keep">${who(s.by)}</td></tr>`).join('')}
+          ${model.sales.filter(s => s.date === P.start).slice().reverse().map(s => `<tr data-rcpt="${esc(s.id)}" style="cursor:pointer" class="${s.void ? 'void' : ''}"><td class="tnum nowrap">${esc(fmtTime(s.at))}</td><td class="sticky nowrap"><b>${esc(s.receipt || '')}</b></td><td class="small">${hasCustomer(s.customer) ? esc(s.customer.name || s.customer.phone) : DASH}</td><td class="small">${esc((s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '))}</td><td class="num">${money(num(s.total))}</td><td class="small">${esc(s.payment || '')}</td><td class="small keep">${who(s.by)}</td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted">No orders on this day.</p>'}</section>` : ''}`;
     resolveNames(body);
   }
@@ -5479,7 +5603,7 @@ async function exportSalesReport() {
   add('Customers', A.cust.rows.map(r => ({ Customer: r.c.name || '', 'Contact number': r.c.phone || '', Address: r.c.address || '', Orders: r.orders, Spent: r2(r.net), 'Average order': r2(r.avg), 'Last order': r.last, Type: r.isNew ? 'New' : 'Returning', 'Customer since': r.c.first || '', 'Lifetime orders': r.c.orders, 'Lifetime spent': r2(r.c.spent), 'Usually buys': favText(r.c) })));
   const hourRows = DOW_LONG.map((dn, d) => { const row = { Day: dn }; for (let h = 0; h < 24; h++) { const v = A.heat[d + '-' + h]; row[hourLabel(h)] = v ? r2(v.net) : 0; } return row; });
   add('Day and hour', hourRows);
-  add('Orders', model.sales.filter(s => s.date >= P.start && s.date <= P.end).map(s => ({ Date: s.date, Time: fmtTime(s.at), Order: s.receipt || '', Channel: s.channelName || '', Customer: (s.customer && s.customer.name) || '', 'Contact number': (s.customer && s.customer.phone) || '', Address: (s.customer && s.customer.address) || '', Items: (s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), Subtotal: num(s.subtotal), Discount: num(s.discount && s.discount.amount) || 0, Total: num(s.total), 'VATable sales': r2(saleVat(s).vatable), VAT: num(s.vat), 'VAT-exempt sales': r2(saleVat(s).exempt), 'Zero-rated sales': r2(saleVat(s).zero), 'Cost of goods': r2((s.items || []).reduce((a, it) => a + (num(it.qty) || 0) * (num(it.unitCost) || 0), 0)), Payment: s.payment || '', Paid: s.void ? null : r2(s.paid), Balance: s.void ? null : r2(s.balance), Status: PAY_STATUS[s.payStatus] ? PAY_STATUS[s.payStatus][0] : '', Due: s.due || '', Cashier: names[s.by || ''] || '', Voided: s.void ? 'Yes' : '', 'Void reason': s.voidReason || '' })));
+  add('Orders', model.sales.filter(s => s.date >= P.start && s.date <= P.end).map(s => ({ Date: s.date, Time: fmtTime(s.at), Order: s.receipt || '', Channel: s.channelName || '', Customer: (s.customer && s.customer.name) || '', 'Contact number': (s.customer && s.customer.phone) || '', Address: (s.customer && s.customer.address) || '', Items: (s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), Subtotal: num(s.subtotal), Discount: num(s.discount && s.discount.amount) || 0, Total: num(s.total), 'VATable sales': r2(saleVat(s).vatable), VAT: num(s.vat), 'VAT-exempt sales': r2(saleVat(s).exempt), 'Zero-rated sales': r2(saleVat(s).zero), 'Cost of goods': r2((s.items || []).reduce((a, it) => a + (num(it.qty) || 0) * (num(it.unitCost) || 0), 0)), Payment: s.payment || '', Paid: s.void ? null : r2(s.paid), Balance: s.void ? null : r2(s.balance), Status: PAY_STATUS[s.payStatus] ? PAY_STATUS[s.payStatus][0] : '', Due: s.due || '', Cashier: names[s.by || ''] || '', Voided: s.void ? 'Yes' : '', 'Void reason': s.voidReason || '' })));
   const buf = X.write(wb, { bookType: 'xlsx', type: 'array' });
   await saveFile(`sales-report-${slug(P.label)}.xlsx`, new Blob([buf]));
 }
@@ -5509,7 +5633,7 @@ async function pdfSalesReport() {
   if (A.cust.rows.length) { pdfHeading(ctx, 'Top customers'); pdfTable(ctx, ['Customer', 'Contact', 'Orders', 'Spent', 'Last order'], A.cust.rows.slice(0, 10).map(r => [(r.c.name || '') + (r.isNew ? ' (new)' : ''), r.c.phone || '', r.orders, money(r.net), fmtDate(r.last)]), { rowH: 15, columnStyles: { 2: R, 3: R } }); }
   if (P.gran === 'day') {
     const orders = model.sales.filter(s => s.date === P.start);
-    if (orders.length) { pdfHeading(ctx, 'Orders'); pdfTable(ctx, ['Time', 'Order', 'Customer', 'Items', 'Paid by', 'Total'], orders.map(s => [fmtTime(s.at), (s.receipt || '') + (s.void ? ' VOID' : ''), (s.customer && (s.customer.name || s.customer.phone)) || '', (s.items || []).map(it => `${qty(num(it.qty))} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), s.payment || '', money(num(s.total))]), { rowH: 15, columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 70 }, 5: { halign: 'right', cellWidth: 70 } } }); }
+    if (orders.length) { pdfHeading(ctx, 'Orders'); pdfTable(ctx, ['Time', 'Order', 'Customer', 'Items', 'Paid by', 'Total'], orders.map(s => [fmtTime(s.at), (s.receipt || '') + (s.void ? ' VOID' : ''), (s.customer && (s.customer.name || s.customer.phone)) || '', (s.items || []).map(it => `${soldQty(it)} ${it.name}${it.size ? ' ' + it.size : ''}`).join(', '), s.payment || '', money(num(s.total))]), { rowH: 15, columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 70 }, 5: { halign: 'right', cellWidth: 70 } } }); }
   }
   if (A.voids.count) pdfParagraph(ctx, `${A.voids.count} voided order${A.voids.count > 1 ? 's' : ''} totalling ${money(A.voids.amount)} are not included above.`);
   await pdfFinish(ctx, `sales-report-${slug(P.label)}.pdf`);
@@ -5698,6 +5822,8 @@ function editSchedule(id, { customerId } = {}) {
       const b1 = lineErr(sel, !sel.value), b2 = lineErr(qi, !(q > 0));
       if (b1 || b2) { errs.push('Each item needs a menu item and a quantity above zero'); continue; }
       const it = posCatalog(f('channel').value).byKey[sel.value];
+      const sq = it && it.kind === 'resale' ? qtyProblem(it.m, q) : (Math.abs(q - Math.round(q)) > 1e-9 ? `${it ? it.name : 'Dishes'} sell in whole numbers` : '');
+      if (sq) { lineErr(qi, true); errs.push(sq); continue; }
       const ex = items.find(x => x.key === sel.value); if (ex) ex.qty += q; else items.push({ key: sel.value, qty: q, name: it ? it.name + (it.size ? ' ' + it.size : '') : '' });
     }
     if (!items.length && !errs.length) errs.push('Add at least one item');
@@ -5898,7 +6024,7 @@ function slipBodyHtml(s, label) {
     <div class="c b lg">${esc(S.businessName || 'Stock & costing')}</div>${S.businessAddress ? `<div class="c sm">${esc(S.businessAddress)}</div>` : ''}
     <hr><div class="c b">Order ${esc(s.receipt || '')}</div><div class="c">${esc(fmtDate(s.date))}, ${esc(fmtTime(s.at))}</div><div class="c">${esc(s.channelName || '')}</div>${s.note ? `<div class="c">${esc(s.note)}</div>` : ''}${s.void ? '<div class="c b xl">VOIDED</div>' : ''}
     ${cu ? `<hr><div class="sm">${isDeliveryName(s) ? 'Deliver to' : 'Customer'}</div>${cu.name ? `<div class="b">${esc(cu.name)}</div>` : ''}${cu.phone ? `<div>${esc(cu.phone)}</div>` : ''}${cu.address ? `<div class="pre">${esc(cu.address)}</div>` : ''}` : ''}
-    <hr>${(s.items || []).map(it => `<div class="it"><div class="row"><span>${esc(qty(num(it.qty)))} x ${esc(it.name)}${it.size ? ' ' + esc(it.size) : ''}</span><span>${esc(money(num(it.qty) * num(it.price)))}</span></div><div class="sm">${esc(money(num(it.price)))} each${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></div>`).join('')}
+    <hr>${(s.items || []).map(it => `<div class="it"><div class="row"><span>${esc(soldQty(it))} x ${esc(it.name)}${it.size ? ' ' + esc(it.size) : ''}</span><span>${esc(money(num(it.qty) * num(it.price)))}</span></div><div class="sm">${esc(money(num(it.price)))} ${esc(perUnit(it))}${it.vat && it.vat !== 'vatable' ? ', ' + vatShort(it.vat) : ''}</div></div>`).join('')}
     <hr>${slipTotalsPrint(s)}<hr>${slipPayPrint(s)}${slipFootPrint()}`;
 }
 const isDeliveryName = s => /deliver/i.test(s.channelName || '');
@@ -5909,7 +6035,7 @@ function sheetSlipHtml(s, label) {
     <div class="cols"><div>${cu ? `<div class="lbl">${isDeliveryName(s) ? 'Deliver to' : 'Customer'}</div>${cu.name ? `<div class="b">${esc(cu.name)}</div>` : ''}${cu.phone ? `<div>${esc(cu.phone)}</div>` : ''}${cu.address ? `<div class="pre">${esc(cu.address)}</div>` : ''}` : ''}</div>
       <div>${s.note ? `<div class="lbl">Note</div><div>${esc(s.note)}</div>` : ''}${s.balance > 0.004 && !s.void ? `<div class="lbl" style="margin-top:2mm">Payment</div><div class="b">${s.payStatus === 'partial' ? 'Partly paid' : 'Unpaid'}${s.due ? ', due ' + esc(fmtDate(s.due)) : ''}</div>` : ''}</div></div>
     <table><thead><tr><th class="n">Qty</th><th>Item</th><th class="n">Unit price</th><th class="n">Amount</th></tr></thead><tbody>
-      ${(s.items || []).map(it => `<tr><td class="n">${esc(qty(num(it.qty)))}</td><td>${esc(it.name)}${it.size ? ' (' + esc(it.size) + ')' : ''}${it.vat && it.vat !== 'vatable' ? ` <span class="sm">${vatShort(it.vat)}</span>` : ''}</td><td class="n">${esc(money(num(it.price)))}</td><td class="n">${esc(money(num(it.qty) * num(it.price)))}</td></tr>`).join('')}
+      ${(s.items || []).map(it => `<tr><td class="n">${esc(soldQty(it))}</td><td>${esc(it.name)}${it.size ? ' (' + esc(it.size) + ')' : ''}${it.vat && it.vat !== 'vatable' ? ` <span class="sm">${vatShort(it.vat)}</span>` : ''}</td><td class="n">${esc(money(num(it.price)))}</td><td class="n">${esc(money(num(it.qty) * num(it.price)))}</td></tr>`).join('')}
     </tbody></table>
     <div class="tot">${slipTotalsPrint(s)}<hr>${slipPayPrint(s)}</div><div class="foot">${slipFootPrint()}</div>`;
 }
@@ -5918,7 +6044,7 @@ function kitchenBodyHtml(s) {
   const short = String(s.receipt || '').split('-').pop();
   return `<div class="c b">Kitchen ticket</div><div class="c b xxl">#${esc(short)}</div><div class="c">Order ${esc(s.receipt || '')}, ${esc(fmtTime(s.at))}</div><div class="c b lg">${esc(s.channelName || '')}</div>
     ${cu && (cu.name || cu.phone) ? `<div class="c">${esc(cu.name || cu.phone)}</div>` : ''}${sch && sch.time ? `<div class="c b">Scheduled for ${esc(fmtClock(sch.time))}</div>` : ''}${s.note ? `<div class="c b">Note: ${esc(s.note)}</div>` : ''}${s.void ? '<div class="c b xl">VOIDED</div>' : ''}
-    <hr>${(s.items || []).map(it => `<div class="ki"><span class="q">${esc(qty(num(it.qty)))}</span><span>${esc(it.name)}${it.size ? ` <u>${esc(it.size)}</u>` : ''}</span></div>`).join('')}
+    <hr>${(s.items || []).map(it => `<div class="ki"><span class="q">${esc(soldQty(it))}</span><span>${esc(it.name)}${it.size ? ` <u>${esc(it.size)}</u>` : ''}</span></div>`).join('')}
     <hr><div class="c sm">Printed ${esc(new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}</div>`;
 }
 async function printDocs(id, opts = {}) {
@@ -6119,6 +6245,10 @@ async function pdfStatement(key) {
   pdfParagraph(ctx, 'If you have already paid, thank you. Please send us the payment reference so we can update your account.');
   await pdfFinish(ctx, `statement-${slug(a.name)}-${today()}.pdf`);
 }
+
+/* Quantity boxes follow the chosen item's type: whole-number keypad for finished goods, decimals for raw items */
+document.addEventListener('focusin', e => { const i = e.target && e.target.closest && e.target.closest('[data-k="qty"]'); if (!i || !model) return; const ln = i.closest('[data-line]'); const sel = ln && ln.querySelector('[data-k="mat"]'); const m = sel && model.matById[sel.value]; if (m) qtyInputMode(i, m); });
+document.addEventListener('change', e => { if (!model || !e.target.matches || !e.target.matches('[data-k="mat"]')) return; const ln = e.target.closest('[data-line]'); const i = ln && ln.querySelector('[data-k="qty"]'); const m = model.matById[e.target.value]; if (i && m) qtyInputMode(i, m); });
 /* =========================================================
    Self-hosted mode: Supabase for shared data, live updates and sign-in.
    Presents the same small interface the app already uses (window.claude.use),

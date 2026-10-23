@@ -1,6 +1,6 @@
 // Keeps a copy of the app on each device so it opens without internet.
 // Data itself is stored by the app on the device and synced with Supabase.
-const CACHE = 'stock-costing-20261023-0257';
+const CACHE = 'stock-costing-20261023-0534';
 const ASSETS = ['./', './index.html', './config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './vendor/supabase.js', './vendor/jspdf.umd.min.js', './vendor/jspdf.plugin.autotable.min.js', './vendor/xlsx.full.min.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
